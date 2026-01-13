@@ -86,8 +86,10 @@ app.post('/api/vendas', (req, res) => {
 
 app.get('/health', (req, res) => res.json({ status: 'OK' }));
 
-app.listen(PORT, HOST, () => {
-  console.log(`CRM Vendas Pro rodando em http://${HOST}:${PORT}`);
+// Ouvir em 0.0.0.0 para ser acessível de fora (importante para Render/Docker)
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`CRM Vendas Pro rodando em http://0.0.0.0:${PORT}`);
+  console.log(`Acesse em: http://localhost:${PORT} (local) ou via domínio (produção)`);
   console.log(`Database: ${DATABASE_PATH}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });
