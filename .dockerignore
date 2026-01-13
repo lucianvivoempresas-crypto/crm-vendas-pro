@@ -1,0 +1,13 @@
+node_modules/
+npm-debug.log
+.git
+.gitignore
+.env.local
+.env.*.local
+crm.sqlite
+*.sqlite
+*.db
+.DS_Store
+dist/
+build/
+coverage/

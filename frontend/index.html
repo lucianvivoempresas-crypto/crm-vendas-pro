@@ -1,0 +1,2859 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>CRM Vendas Pro com IndexedDB</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- CORREÇÃO: Carrega a biblioteca 'lucide' (JavaScript) em vez de 'lucide-react' -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <!-- Tailwind Dark Mode e Configuração de Fonte -->
+  <style>
+    :root {
+      font-family: 'Inter', sans-serif;
+    }
+    html {
+      scroll-behavior: smooth;
+    }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    
+    /* Custom scrollbar for webkit browsers */
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #1e293b; /* slate-800 */
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #475569; /* slate-600 */
+      border-radius: 5px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #64748b; /* slate-500 */
+    }
+    
+    /* Esconde o input[type=date] calendar icon no webkit */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      display: none;
+      -webkit-appearance: none;
+    }
+    
+    /* Garante que o painel rápido e modais fiquem no topo */
+    #quick-forms-panel { z-index: 40; }
+    #modal { z-index: 50; }
+    #confirm-modal { z-index: 60; } /* Mais alto que todos */
+
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-slate-300">
+  
+  <!-- Cabeçalho -->
+  <header class="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 sticky top-0 z-20">
+    <div class="max-w-7xl mx-auto px-4 py-4">
+      <div class="flex items-center justify-between">
+        <!-- Logo e Título -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+            <i data-lucide="bar-chart-3" class="w-6 h-6 text-white"></i>
+          </div>
+          <div>
+            <h1 class="text-xl sm:text-2xl font-bold text-white">CRM Vendas Pro</h1>
+            <p class="text-sm text-slate-400 hidden sm:block">Gestão Inteligente de Comissões</p>
+          </div>
+        </div>
+        <!-- Botões de Ação -->
+        <div class="flex items-center gap-2">
+          <button
+            id="btn-notificacoes"
+            class="px-3 py-2 rounded-lg flex items-center gap-2 transition-all bg-slate-700 text-slate-300 hover:bg-slate-600"
+          >
+            <i data-lucide="bell" class="w-4 h-4"></i>
+            <span id="label-notificacoes" class="hidden sm:inline">Ativar Notificações</span>
+          </button>
+          <button
+            id="btn-open-quick-forms"
+            class="px-3 py-2 rounded-lg flex items-center gap-2 transition-all bg-purple-600 text-white hover:bg-purple-700"
+          >
+            <i data-lucide="file-plus" class="w-4 h-4"></i>
+            <span class="hidden sm:inline">Abrir Forms</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navegação por Abas -->
+  <nav class="bg-slate-800/30 backdrop-blur-sm border-b border-slate-700 sticky top-[77px] z-20">
+    <div class="max-w-7xl mx-auto px-4">
+      <div id="tabs-container" class="flex gap-1 overflow-x-auto -mb-px">
+        <button data-tab="dashboard" class="tab-btn flex items-center gap-2 px-4 sm:px-6 py-3 font-medium transition-all whitespace-nowrap text-white border-b-2 border-blue-500 bg-slate-700/50">
+          <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+          <span>Dashboard</span>
+        </button>
+        <button data-tab="vendas" class="tab-btn flex items-center gap-2 px-4 sm:px-6 py-3 font-medium transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-700/30 border-b-2 border-transparent">
+          <i data-lucide="trending-up" class="w-4 h-4"></i>
+          <span>Vendas</span>
+        </button>
+        <button data-tab="clientes" class="tab-btn flex items-center gap-2 px-4 sm:px-6 py-3 font-medium transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-700/30 border-b-2 border-transparent">
+          <i data-lucide="users" class="w-4 h-4"></i>
+          <span>Clientes</span>
+        </button>
+        <button data-tab="posvenda" class="tab-btn flex items-center gap-2 px-4 sm:px-6 py-3 font-medium transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-700/30 border-b-2 border-transparent">
+          <i data-lucide="bell-ring" class="w-4 h-4"></i>
+          <span>Pós-Venda</span>
+        </button>
+        <button data-tab="comissoes" class="tab-btn flex items-center gap-2 px-4 sm:px-6 py-3 font-medium transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-700/30 border-b-2 border-transparent">
+          <i data-lucide="dollar-sign" class="w-4 h-4"></i>
+          <span>Comissões</span>
+        </button>
+        <button data-tab="metas" class="tab-btn flex items-center gap-2 px-4 sm:px-6 py-3 font-medium transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-700/30 border-b-2 border-transparent">
+          <i data-lucide="target" class="w-4 h-4"></i>
+          <span>Metas</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Conteúdo Principal -->
+  <main class="max-w-7xl mx-auto px-4 py-8">
+    
+    <!-- Seção Dashboard -->
+    <section id="tab-dashboard" class="tab-content space-y-6">
+      
+      <!-- Filtro de Período do Dashboard -->
+      <div class="flex justify-end">
+        <select id="dashboard-period-filter" class="px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500">
+          <option value="this_month">Analisar Período: Este Mês</option>
+          <option value="last_month">Analisar Período: Mês Passado</option>
+          <option value="this_quarter">Analisar Período: Este Trimestre</option>
+          <option value="last_30_days">Analisar Período: Últimos 30 Dias</option>
+        </select>
+      </div>
+      
+      <!-- Métricas Principais -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-xl">
+          <div class="flex items-center justify-between mb-2">
+            <i data-lucide="users" class="w-8 h-8 opacity-80"></i>
+            <span id="metric-totalClientes" class="text-3xl font-bold">0</span>
+          </div>
+          <p class="text-blue-100">Total de Clientes</p>
+        </div>
+        <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-xl">
+          <div class="flex items-center justify-between mb-2">
+            <i data-lucide="trending-up" class="w-8 h-8 opacity-80"></i>
+            <span id="metric-vendasPeriodo" class="text-3xl font-bold">0</span>
+          </div>
+          <p class="text-green-100">Vendas no Período</p>
+        </div>
+        <div class="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-xl">
+          <div class="flex items-center justify-between mb-2">
+            <i data-lucide="dollar-sign" class="w-8 h-8 opacity-80"></i>
+            <span id="metric-totalVendas" class="text-3xl font-bold">R$ 0</span>
+          </div>
+          <p class="text-purple-100">Vendas no Período</p>
+        </div>
+        <div class="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 text-white shadow-xl">
+          <div class="flex items-center justify-between mb-2">
+            <i data-lucide="bar-chart-3" class="w-8 h-8 opacity-80"></i>
+            <span id="metric-totalComissoes" class="text-3xl font-bold">R$ 0</span>
+          </div>
+          <p class="text-orange-100">Comissões no Período</p>
+        </div>
+      </div>
+
+      <!-- Progresso das Metas -->
+      <div id="metas-progresso-container" class="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
+        <div class="flex items-center gap-3 mb-4">
+          <i data-lucide="target" class="w-6 h-6 text-blue-400"></i>
+          <h3 class="text-xl font-bold text-white">Progresso da Meta</h3>
+        </div>
+        <div id="metas-progresso-content" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Conteúdo dinâmico das metas -->
+        </div>
+        <div id="metas-progresso-empty" class="text-center text-slate-400 py-4 hidden">
+          Nenhuma meta definida para este período.
+        </div>
+      </div>
+
+      <!-- Gráficos -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
+          <h3 class="text-xl font-bold text-white mb-4">Evolução Mensal (Ano Atual)</h3>
+          <div class="h-80">
+            <canvas id="line-chart"></canvas>
+          </div>
+        </div>
+        <div class="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
+          <h3 class="text-xl font-bold text-white mb-4">Distribuição por Produto (Período)</h3>
+          <div class="h-80">
+            <canvas id="pie-chart"></canvas>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Vendas Recentes -->
+      <div class="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-xl font-bold text-white">Vendas Recentes</h3>
+          <button
+            id="btn-export-vendas-dash"
+            class="px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-all flex items-center gap-2 border border-blue-500/30"
+          >
+            <i data-lucide="download" class="w-4 h-4"></i>
+            Exportar CSV
+          </button>
+        </div>
+        <div id="vendas-recentes-container" class="space-y-3">
+          <!-- Conteúdo dinâmico das vendas recentes -->
+        </div>
+        <div id="vendas-recentes-empty" class="text-center text-slate-400 py-4 hidden">
+          Nenhuma venda registrada ainda.
+        </div>
+      </div>
+    </section>
+    
+    <!-- Seção Vendas -->
+    <section id="tab-vendas" class="tab-content space-y-6 hidden">
+      <!-- Filtros e Ações -->
+      <div class="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+        <div class="flex gap-3 flex-wrap">
+          <div class="relative">
+            <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"></i>
+            <input
+              type="text"
+              id="search-vendas"
+              placeholder="Buscar cliente..."
+              class="pl-10 pr-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <select
+            id="filter-vendas-status"
+            class="px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+          >
+            <option value="">Todos os Status</option>
+            <option value="Negociando">Negociando</option>
+            <option value="Aguardando Aceite">Aguardando Aceite</option>
+            <option value="Inputado">Inputado</option>
+            <option value="Concluído">Concluído</option>
+            <option value="Cancelado">Cancelado</option>
+          </select>
+          <input
+            type="month"
+            id="filter-vendas-month"
+            class="px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+          />
+        </div>
+        <div class="flex gap-2">
+          <button
+            id="btn-export-vendas"
+            class="px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-all flex items-center gap-2 border border-green-500/30"
+          >
+            <i data-lucide="download" class="w-4 h-4"></i>
+            Exportar
+          </button>
+          <button
+            id="btn-import-vendas"
+            class="px-4 py-2 bg-purple-500/20 text-purple-300 rounded-lg hover:bg-purple-500/30 transition-all flex items-center gap-2 border border-purple-500/30"
+            title="Importar vendas de outro arquivo (Excel .xlsx ou .csv)"
+          >
+            <i data-lucide="upload" class="w-4 h-4"></i>
+            Importar Excel
+          </button>
+          <input id="input-import-vendas" type="file" accept=".xlsx,.xls,.csv" class="hidden" />
+
+          <button
+            id="btn-nova-venda"
+            class="px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 transition-all flex items-center gap-2 shadow-lg"
+          >
+            <i data-lucide="plus" class="w-5 h-5"></i>
+            Nova Venda
+          </button>
+        </div>
+      </div>
+      <!-- Tabela de Vendas -->
+      <div class="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead class="bg-slate-700/50">
+              <tr>
+                <th class="px-6 py-4 text-left text-sm font-semibold text-slate-300">Cliente</th>
+                <th class="px-6 py-4 text-left text-sm font-semibold text-slate-300">Produto</th>
+                <th class="px-6 py-4 text-left text-sm font-semibold text-slate-300">Operadora</th>
+                <th class="px-6 py-4 text-left text-sm font-semibold text-slate-300">Valor</th>
+                <th class="px-6 py-4 text-left text-sm font-semibold text-slate-300">Comissão</th>
+                <th class="px-6 py-4 text-left text-sm font-semibold text-slate-300">Status</th>
+                <th class="px-6 py-4 text-left text-sm font-semibold text-slate-300">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="vendas-table-body" class="divide-y divide-slate-700">
+              <!-- Conteúdo dinâmico -->
+            </tbody>
+          </table>
+          <div id="vendas-table-empty" class="text-center text-slate-400 py-12 hidden">
+            <i data-lucide="zap-off" class="w-12 h-12 mx-auto mb-4 text-slate-500"></i>
+            <p>Nenhuma venda encontrada</p>
+          </div>
+        </div>
+      </div>
+    </section>
+    
+    <!-- Seção Clientes -->
+    <section id="tab-clientes" class="tab-content space-y-6 hidden">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 class="text-2xl font-bold text-white">Gerenciar Clientes</h2>
+        <div class="flex gap-2">
+          <button
+            id="btn-export-clientes"
+            class="px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-all flex items-center gap-2 border border-green-500/30"
+          >
+            <i data-lucide="download" class="w-4 h-4"></i>
+            Exportar
+          </button>
+          <button
+            id="btn-import-clientes"
+            class="px-4 py-2 bg-purple-500/20 text-purple-300 rounded-lg hover:bg-purple-500/30 transition-all flex items-center gap-2 border border-purple-500/30"
+            title="Importar clientes de outro CRM (Excel .xlsx ou .csv)"
+          >
+            <i data-lucide="upload" class="w-4 h-4"></i>
+            Importar Excel
+          </button>
+          <input id="input-import-clientes" type="file" accept=".xlsx,.xls,.csv" class="hidden" />
+
+          <button
+            id="btn-novo-cliente"
+            class="px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 transition-all flex items-center gap-2 shadow-lg"
+          >
+            <i data-lucide="plus" class="w-5 h-5"></i>
+            Novo Cliente
+          </button>
+        </div>
+      </div>
+      <div id="clientes-grid-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Conteúdo dinâmico -->
+      </div>
+      <div id="clientes-grid-empty" class="text-center text-slate-400 py-20 hidden">
+        <i data-lucide="users-round" class="w-16 h-16 mx-auto mb-4 text-slate-500"></i>
+        <p class="text-lg">Nenhum cliente cadastrado</p>
+        <p class="text-slate-500">Adicione seu primeiro cliente para começar</p>
+      </div>
+    </section>
+    
+    <!-- Seção Pós-Venda -->
+    <section id="tab-posvenda" class="tab-content space-y-6 hidden">
+      <div class="flex items-center gap-3 mb-6">
+        <i data-lucide="bell-ring" class="w-8 h-8 text-blue-400"></i>
+        <div>
+          <h2 class="text-2xl font-bold text-white">Lembretes de Pós-Venda</h2>
+          <p class="text-slate-400">Acompanhe seus clientes em 7, 30 e 90 dias após a venda</p>
+        </div>
+      </div>
+      <div id="posvenda-container" class="space-y-4">
+        <!-- Conteúdo dinâmico -->
+      </div>
+      <div id="posvenda-empty" class="bg-slate-800/50 backdrop-blur-sm rounded-xl p-12 border border-slate-700 text-center hidden">
+        <i data-lucide="calendar-check" class="w-16 h-16 text-slate-500 mx-auto mb-4"></i>
+        <p class="text-slate-400 text-lg">Nenhum lembrete pendente no momento</p>
+      </div>
+    </section>
+    
+    <!-- Seção Comissões -->
+    <section id="tab-comissoes" class="tab-content space-y-6 hidden">
+      <div class="flex justify-between items-center">
+        <h2 class="text-2xl font-bold text-white">Tabela de Comissões</h2>
+        <button
+          id="btn-nova-comissao"
+          class="px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 transition-all flex items-center gap-2 shadow-lg"
+        >
+          <i data-lucide="plus" class="w-5 h-5"></i>
+          Adicionar Regra
+        </button>
+      </div>
+      <div class="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead class="bg-slate-700/50">
+              <tr>
+                <th class="px-6 py-4 text-left text-sm font-semibold text-slate-300">Produto</th>
+                <th class="px-6 py-4 text-left text-sm font-semibold text-slate-300">Tipo Cliente</th>
+                <th class="px-6 py-4 text-left text-sm font-semibold text-slate-300">Operadora</th>
+                <th class="px-6 py-4 text-left text-sm font-semibold text-slate-300">Comissão</th>
+                <th class="px-6 py-4 text-left text-sm font-semibold text-slate-300">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="comissoes-table-body" class="divide-y divide-slate-700">
+              <!-- Conteúdo dinâmico -->
+            </tbody>
+          </table>
+          <div id="comissoes-table-empty" class="text-center text-slate-400 py-12 hidden">
+             <i data-lucide="percent-circle" class="w-12 h-12 mx-auto mb-4 text-slate-500"></i>
+            <p>Nenhuma regra de comissão definida</p>
+          </div>
+        </div>
+      </div>
+      <div class="bg-blue-500/10 border border-blue-500/30 rounded-xl p-6">
+        <h3 class="text-lg font-bold text-blue-400 mb-2"><i data-lucide="lightbulb" class="w-5 h-5 inline-block -mt-1 mr-2"></i> Dica</h3>
+        <p class="text-slate-300">As comissões são calculadas automaticamente. Você pode adicionar novas regras ou editar as existentes conforme sua necessidade!</p>
+      </div>
+    </section>
+    
+    <!-- Seção Metas -->
+    <section id="tab-metas" class="tab-content space-y-6 hidden">
+      <div class="flex justify-between items-center">
+        <div class="flex items-center gap-3">
+          <i data-lucide="target" class="w-8 h-8 text-blue-400"></i>
+          <div>
+            <h2 class="text-2xl font-bold text-white">Metas e Objetivos</h2>
+            <p class="text-slate-400">Defina suas metas mensais de vendas e comissões</p>
+          </div>
+        </div>
+        <button
+          id="btn-nova-meta"
+          class="px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 transition-all flex items-center gap-2 shadow-lg"
+        >
+          <i data-lucide="plus" class="w-5 h-5"></i>
+          Nova Meta
+        </button>
+      </div>
+      <div id="metas-grid-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Conteúdo dinâmico -->
+      </div>
+      <div id="metas-grid-empty" class="bg-slate-800/50 backdrop-blur-sm rounded-xl p-12 border border-slate-700 text-center hidden">
+        <i data-lucide="target" class="w-16 h-16 text-slate-500 mx-auto mb-4"></i>
+        <p class="text-slate-400 text-lg">Nenhuma meta cadastrada</p>
+        <p class="text-slate-500 text-sm mt-2">Crie sua primeira meta para acompanhar seu progresso!</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- PAINEL DE FORMULÁRIO RÁPIDO -->
+  <div id="quick-forms-panel" class="fixed top-0 right-0 h-full w-full max-w-sm sm:w-80 bg-slate-900 border-l border-slate-700 shadow-lg transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
+    <!-- Cabeçalho do Painel -->
+    <div class="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-800 sticky top-0">
+      <h3 class="text-lg font-bold text-white">Formulários Rápidos</h3>
+      <button id="btn-close-quick-forms" class="p-1 hover:bg-slate-700 rounded-lg">
+        <i data-lucide="x" class="w-5 h-5 text-slate-400"></i>
+      </button>
+    </div>
+    
+    <!-- Container com Scroll -->
+    <div class="flex-1 overflow-y-auto p-4 space-y-6">
+      <!-- Mensagem de Sucesso/Erro Rápida -->
+      <div id="quick-form-message" class="rounded-lg p-3 text-sm hidden mb-4">
+        <!-- Mensagem será injetada aqui -->
+      </div>
+      
+      <!-- Formulário Novo Cliente Rápido -->
+      <form id="quick-form-cliente" class="space-y-3" novalidate>
+        <h4 class="text-md font-semibold text-white border-b border-slate-700 pb-2">Novo Cliente</h4>
+        <input type="text" id="qf-cliente-nome" class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" placeholder="Nome *" required>
+        <input type="text" id="qf-cliente-cpfCnpj" class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" placeholder="CPF/CNPJ *" required>
+        <input type="tel" id="qf-cliente-telefone" class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" placeholder="Telefone *" required>
+        <input type="email" id="qf-cliente-email" class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" placeholder="Email" >
+        <input type="date" id="qf-cliente-dataNascimento" class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" title="Data de Nascimento">
+        <button type="submit" class="w-full px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 transition-all">
+          Salvar Cliente
+        </button>
+      </form>
+      
+      <!-- Divisor -->
+      <hr class="border-slate-700">
+      
+      <!-- Formulário Nova Venda Rápida -->
+      <form id="quick-form-venda" class="space-y-3" novalidate>
+        <h4 class="text-md font-semibold text-white border-b border-slate-700 pb-2">Nova Venda</h4>
+        <select id="qf-venda-clienteId" class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500" required>
+          <option value="">Selecione cliente *</option>
+        </select>
+        <select id="qf-venda-produto" class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500" required>
+          <option value="">Selecione produto *</option>
+          <!-- Opções de produto dinâmicas -->
+        </select>
+        <select id="qf-venda-operadora" class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500" required>
+          <option value="">Selecione operadora *</option>
+          <!-- Opções de operadora dinâmicas -->
+        </select>
+        <input type="number" step="0.01" id="qf-venda-valorVenda" class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" placeholder="Valor (R$) *" required>
+        <select id="qf-venda-tipoCliente" class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500" required>
+          <option value="">Tipo de Cliente *</option>
+          <option value="Novo">Novo</option>
+          <option value="Base">Base</option>
+        </select>
+        <select id="qf-venda-status" class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500" required>
+          <option value="Negociando">Negociando</option>
+          <option value="Aguardando Aceite">Aguardando Aceite</option>
+          <option value="Inputado">Inputado</option>
+          <option value="Concluído">Concluído</option>
+          <option value="Cancelado">Cancelado</option>
+        </select>
+        <input type="date" id="qf-venda-dataConclusao" class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 hidden" title="Data de Conclusão">
+        <button type="submit" class="w-full px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg font-medium hover:from-green-600 hover:to-emerald-700 transition-all">
+          Salvar Venda
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Genérico (Formulários Principais) -->
+  <div id="modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <!-- Modal Header -->
+      <div class="sticky top-0 bg-slate-800 border-b border-slate-700 px-6 py-4 flex items-center justify-between">
+        <h3 id="modal-title" class="text-xl font-bold text-white"></h3>
+        <button id="btn-modal-close" class="p-2 hover:bg-slate-700 rounded-lg transition-colors">
+          <i data-lucide="x" class="w-5 h-5 text-slate-400"></i>
+        </button>
+      </div>
+      <!-- Modal Body -->
+      <div class="overflow-y-auto p-6">
+        <form id="modal-form" novalidate>
+          <input type="hidden" id="modal-type-input">
+          <input type="hidden" id="modal-editing-id-input">
+          <div id="modal-form-content" class="space-y-4">
+            <!-- Conteúdo do formulário dinâmico -->
+          </div>
+          <!-- Mensagem de Erro do Modal -->
+          <div id="modal-error-message" class="text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-sm mt-4 hidden">
+            <!-- Mensagem de erro -->
+          </div>
+          <!-- Botões do Modal -->
+          <div class="flex gap-3 mt-6">
+            <button type="button" id="btn-modal-cancel" class="flex-1 px-6 py-3 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-600 transition-colors">
+              Cancelar
+            </button>
+            <button type="submit" id="btn-modal-save" class="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 transition-all shadow-lg">
+              Salvar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Perfil do Cliente -->
+  <div id="client-profile-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+      <!-- Modal Header -->
+      <div class="sticky top-0 bg-slate-800 border-b border-slate-700 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <i data-lucide="user-round" class="w-6 h-6 text-blue-400"></i>
+            <h3 id="client-profile-name" class="text-xl font-bold text-white"></h3>
+        </div>
+        <button id="btn-client-profile-close" class="p-2 hover:bg-slate-700 rounded-lg transition-colors">
+          <i data-lucide="x" class="w-5 h-5 text-slate-400"></i>
+        </button>
+      </div>
+      <!-- Modal Body -->
+      <div class="overflow-y-auto p-6 space-y-6">
+        <!-- Informações do Cliente -->
+        <div class="bg-slate-700/50 rounded-lg p-4">
+            <h4 class="text-lg font-semibold text-white mb-3">Informações de Contato</h4>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <div>
+                    <p class="text-slate-400">CPF/CNPJ</p>
+                    <p id="client-profile-cpfCnpj" class="text-white font-medium"></p>
+                </div>
+                <div>
+                    <p class="text-slate-400">Telefone</p>
+                    <p id="client-profile-telefone" class="text-white font-medium"></p>
+                </div>
+                <div>
+                    <p class="text-slate-400">Email</p>
+                    <p id="client-profile-email" class="text-white font-medium"></p>
+                </div>
+                <div>
+                    <p class="text-slate-400">Data de Nascimento</p>
+                    <p id="client-profile-dataNascimento" class="text-white font-medium"></p>
+                  </div>
+                  <div class="sm:col-span-2">
+                    <p class="text-slate-400">Endereço</p>
+                    <p id="client-profile-endereco" class="text-white font-medium"></p>
+                  </div>
+                  <div>
+                    <p class="text-slate-400">Conta Contrato / Instalação</p>
+                    <p id="client-profile-contaContrato" class="text-white font-medium"></p>
+
+                </div>
+            </div>
+        </div>
+        <!-- Histórico de Vendas -->
+        <div>
+            <h4 class="text-lg font-semibold text-white mb-3">Histórico de Vendas</h4>
+            <div class="bg-slate-700/50 rounded-lg overflow-hidden border border-slate-700">
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-slate-700">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-300">Produto</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-300">Valor</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-300">Comissão</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-300">Data</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-300">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="client-profile-vendas-body" class="divide-y divide-slate-700">
+                            <!-- Histórico de vendas dinâmico -->
+                        </tbody>
+                    </table>
+                </div>
+                 <div id="client-profile-vendas-empty" class="text-center text-slate-400 p-6 hidden">
+                    Nenhuma venda registrada para este cliente.
+                </div>
+            </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmação de Exclusão -->
+  <div id="confirm-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-sm shadow-xl">
+        <div class="p-6">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-red-400"></i>
+                </div>
+                <h3 id="confirm-modal-title" class="text-lg font-bold text-white">Tem certeza?</h3>
+            </div>
+            <p id="confirm-modal-text" class="text-slate-400 text-sm mt-3 mb-6">
+                Você realmente deseja excluir este item? Esta ação não pode ser desfeita.
+            </p>
+            <div class="flex gap-3">
+                <button id="btn-confirm-cancel" class="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-600 transition-colors">
+                    Cancelar
+                </button>
+                <button id="btn-confirm-delete" class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors">
+                    Excluir
+                </button>
+            </div>
+        </div>
+    </div>
+  </div>
+
+
+  <!-- Modal Importar Clientes (Excel/CSV) -->
+  <div id="import-clientes-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div class="sticky top-0 bg-slate-800 border-b border-slate-700 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <i data-lucide="upload" class="w-6 h-6 text-purple-300"></i>
+          <h3 class="text-xl font-bold text-white">Importar Clientes do Excel</h3>
+        </div>
+        <button id="btn-import-clientes-close" class="p-2 hover:bg-slate-700 rounded-lg transition-colors">
+          <i data-lucide="x" class="w-5 h-5 text-slate-400"></i>
+        </button>
+      </div>
+
+      <div class="overflow-y-auto p-6 space-y-5">
+        <div class="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 text-sm text-slate-300">
+          <p class="font-semibold text-purple-200 mb-1">Como funciona</p>
+          <ul class="list-disc pl-5 space-y-1">
+            <li>Escolha o arquivo (.xlsx/.xls/.csv) e faça o mapeamento das colunas.</li>
+            <li>Se já existir um cliente com o mesmo CPF/CNPJ, o sistema atualiza (mantém o que já existe e preenche o que estiver vazio).</li>
+          </ul>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">CPF/CNPJ</label><select id="map-cpfCnpj" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">Nome (Empresa/Contato)</label><select id="map-nome" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">Telefone</label><select id="map-telefone" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">Email</label><select id="map-email" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">CEP</label><select id="map-cep" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">Logradouro</label><select id="map-logradouro" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">Número</label><select id="map-numero" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">Complemento</label><select id="map-complemento" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">Bairro</label><select id="map-bairro" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">Cidade</label><select id="map-cidade" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">UF</label><select id="map-uf" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">Conta Contrato / Instalação</label><select id="map-contaContrato" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">Data Nascimento</label><select id="map-dataNascimento" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+        </div>
+
+        <div class="bg-slate-900/40 border border-slate-700 rounded-xl p-4">
+          <div class="flex items-center justify-between gap-3 mb-3">
+            <p class="font-semibold text-white">Prévia</p>
+            <span id="import-preview-count" class="text-sm text-slate-400">0 linhas</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="text-slate-300">
+                <tr><th class="text-left py-2 pr-3">CPF/CNPJ</th><th class="text-left py-2 pr-3">Nome</th><th class="text-left py-2 pr-3">Telefone</th><th class="text-left py-2 pr-3">Email</th></tr>
+              </thead>
+              <tbody id="import-preview-body" class="text-slate-200 divide-y divide-slate-800"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="import-clientes-error" class="text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-sm hidden"></div>
+
+        <div class="flex gap-3">
+          <button id="btn-import-clientes-cancel" class="flex-1 px-6 py-3 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-600 transition-colors">Cancelar</button>
+          <button id="btn-import-clientes-run" class="flex-1 px-6 py-3 bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white rounded-lg font-medium hover:from-purple-600 hover:to-fuchsia-700 transition-all shadow-lg">Importar Agora</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Importar Vendas (Excel/CSV) -->
+  <div id="import-vendas-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div class="sticky top-0 bg-slate-800 border-b border-slate-700 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <i data-lucide="upload" class="w-6 h-6 text-purple-300"></i>
+          <h3 class="text-xl font-bold text-white">Importar Vendas do Excel</h3>
+        </div>
+        <button id="btn-import-vendas-close" class="p-2 hover:bg-slate-700 rounded-lg transition-colors">
+          <i data-lucide="x" class="w-5 h-5 text-slate-400"></i>
+        </button>
+      </div>
+
+      <div class="overflow-y-auto p-6 space-y-5">
+        <div class="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 text-sm text-slate-300">
+          <p class="font-semibold text-purple-200 mb-1">Como funciona</p>
+          <ul class="list-disc pl-5 space-y-1">
+            <li>Escolha o arquivo (.xlsx/.xls/.csv) e faça o mapeamento das colunas de vendas.</li>
+            <li>A planilha deve conter as colunas de venda: Data, Cliente, Produto, Operadora, Tipo Cliente, Valor, Comissão e Status.</li>
+          </ul>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">Data</label><select id="map-vendas-data" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">Cliente</label><select id="map-vendas-cliente" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">Produto</label><select id="map-vendas-produto" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">Operadora</label><select id="map-vendas-operadora" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">Tipo Cliente</label><select id="map-vendas-tipoCliente" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">Valor</label><select id="map-vendas-valor" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">Comissão</label><select id="map-vendas-comissao" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+          <div><label class="block text-sm font-medium text-slate-300 mb-2">Status</label><select id="map-vendas-status" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-purple-400"></select></div>
+        </div>
+
+        <div class="bg-slate-900/40 border border-slate-700 rounded-xl p-4">
+          <div class="flex items-center justify-between gap-3 mb-3">
+            <p class="font-semibold text-white">Prévia</p>
+            <span id="import-vendas-preview-count" class="text-sm text-slate-400">0 linhas</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="text-slate-300">
+                <tr><th class="text-left py-2 pr-3">Data</th><th class="text-left py-2 pr-3">Cliente</th><th class="text-left py-2 pr-3">Produto</th><th class="text-left py-2 pr-3">Valor</th></tr>
+              </thead>
+              <tbody id="import-vendas-preview-body" class="text-slate-200 divide-y divide-slate-800"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="import-vendas-error" class="text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-sm hidden"></div>
+
+        <div class="flex gap-3">
+          <button id="btn-import-vendas-cancel" class="flex-1 px-6 py-3 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-600 transition-colors">Cancelar</button>
+          <button id="btn-import-vendas-run" class="flex-1 px-6 py-3 bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white rounded-lg font-medium hover:from-purple-600 hover:to-fuchsia-700 transition-all shadow-lg">Importar Agora</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Templates HTML para Formulários -->
+  <template id="template-form-cliente">
+    <div>
+      <label class="block text-sm font-medium text-slate-300 mb-2">CPF/CNPJ *</label>
+      <input
+        type="text"
+        id="cliente-cpfCnpj"
+        class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+        placeholder="000.000.000-00"
+        required
+      />
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-300 mb-2">Nome Completo *</label>
+      <input
+        type="text"
+        id="cliente-nome"
+        class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+        placeholder="João Silva"
+        required
+      />
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-300 mb-2">Telefone *</label>
+      <input
+        type="tel"
+        id="cliente-telefone"
+        class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+        placeholder="(11) 99999-9999"
+        required
+      />
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-300 mb-2">Email</label>
+      <input
+        type="email"
+        id="cliente-email"
+        class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+        placeholder="joao@email.com"
+      />
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-300 mb-2">Data de Nascimento</label>
+      <input
+        type="date"
+        id="cliente-dataNascimento"
+        class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+      />
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-300 mb-2">CEP</label>
+        <input type="text" id="cliente-cep" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" placeholder="00000-000" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-300 mb-2">Conta Contrato / Instalação</label>
+        <input type="text" id="cliente-contaContrato" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" placeholder="Número da instalação/conta" />
+      </div>
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-300 mb-2">Logradouro</label>
+      <input type="text" id="cliente-logradouro" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" placeholder="Rua / Avenida" />
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-300 mb-2">Número</label>
+        <input type="text" id="cliente-numero" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" placeholder="Nº" />
+      </div>
+      <div class="sm:col-span-2">
+        <label class="block text-sm font-medium text-slate-300 mb-2">Complemento</label>
+        <input type="text" id="cliente-complemento" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" placeholder="Sala, ap, etc." />
+      </div>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="sm:col-span-2">
+        <label class="block text-sm font-medium text-slate-300 mb-2">Bairro</label>
+        <input type="text" id="cliente-bairro" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-300 mb-2">UF</label>
+        <input type="text" id="cliente-uf" maxlength="2" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" placeholder="BA" />
+      </div>
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-300 mb-2">Cidade</label>
+      <input type="text" id="cliente-cidade" class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" />
+    </div>
+
+  </template>
+
+  <template id="template-form-venda">
+    <div>
+      <label class="block text-sm font-medium text-slate-300 mb-2">Cliente *</label>
+      <select
+        id="venda-clienteId"
+        class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+        required
+      >
+        <option value="">Selecione um cliente</option>
+        <!-- Options preenchidas por JS -->
+      </select>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-300 mb-2">Produto *</label>
+        <select
+          id="venda-produto"
+          class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+          required
+        >
+          <option value="">Selecione</option>
+          <!-- Options preenchidas por JS -->
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-300 mb-2">Operadora *</label>
+        <select
+          id="venda-operadora"
+          class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+          required
+        >
+          <option value="">Selecione</option>
+          <!-- Options preenchidas por JS -->
+        </select>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-300 mb-2">Tipo de Cliente *</label>
+        <select
+          id="venda-tipoCliente"
+          class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+          required
+        >
+          <option value="">Selecione</option>
+          <option value="Novo">Novo</option>
+          <option value="Base">Base</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-300 mb-2">Valor da Venda *</label>
+        <input
+          type="number"
+          step="0.01"
+          id="venda-valorVenda"
+          class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+          placeholder="0.00"
+          required
+        />
+      </div>
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-300 mb-2">Status do Funil *</label>
+      <select
+        id="venda-status"
+        class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+        required
+      >
+        <option value="Negociando">Negociando</option>
+        <option value="Aguardando Aceite">Aguardando Aceite</option>
+        <option value="Inputado">Inputado</option>
+        <option value="Concluído">Concluído</option>
+        <option value="Cancelado">Cancelado</option>
+      </select>
+    </div>
+    <div id="venda-data-conclusao-container" class="hidden">
+      <label class="block text-sm font-medium text-slate-300 mb-2">Data de Conclusão *</label>
+      <input
+        type="date"
+        id="venda-dataConclusao"
+        class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+      />
+    </div>
+    <div id="venda-comissao-estimada" class="bg-green-500/10 border border-green-500/30 rounded-lg p-4 hidden">
+      <p class="text-sm text-slate-300 mb-1">Comissão Estimada:</p>
+      <p id="venda-comissao-valor" class="text-2xl font-bold text-green-400">R$ 0,00</p>
+    </div>
+  </template>
+
+  <template id="template-form-comissao">
+    <div>
+      <label class="block text-sm font-medium text-slate-300 mb-2">Produto *</label>
+      <input
+        type="text"
+        id="comissao-produto"
+        class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+        placeholder="Ex: Móvel, Banda Larga, etc."
+        required
+      />
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-300 mb-2">Tipo de Cliente *</label>
+      <select
+        id="comissao-tipoCliente"
+        class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+        required
+      >
+        <option value="">Selecione</option>
+        <option value="Novo">Novo</option>
+        <option value="Base">Base</option>
+      </select>
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-300 mb-2">Operadora *</label>
+      <input
+        type="text"
+        id="comissao-operadora"
+        class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+        placeholder="Ex: TIM, Claro, Vivo, etc."
+        required
+      />
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-300 mb-2">Comissão (%) *</label>
+      <input
+        type="number"
+        step="0.01"
+        id="comissao-comissao"
+        class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+        placeholder="Ex: 230 (para 230%)"
+        required
+      />
+    </div>
+    <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+      <p class="text-sm text-blue-400">
+        💡 A comissão será calculada como percentual sobre o valor da venda.
+        Ex: 230% significa que uma venda de R$ 100 gerará R$ 230 de comissão.
+      </p>
+    </div>
+  </template>
+
+  <template id="template-form-meta">
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-300 mb-2">Mês *</label>
+        <select
+          id="meta-mes"
+          class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+          required
+        >
+          <option value="">Selecione</option>
+          <option value="1">Janeiro</option>
+          <option value="2">Fevereiro</option>
+          <option value="3">Março</option>
+          <option value="4">Abril</option>
+          <option value="5">Maio</option>
+          <option value="6">Junho</option>
+          <option value="7">Julho</option>
+          <option value="8">Agosto</option>
+          <option value="9">Setembro</option>
+          <option value="10">Outubro</option>
+          <option value="11">Novembro</option>
+          <option value="12">Dezembro</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-300 mb-2">Ano *</label>
+        <input
+          type="number"
+          id="meta-ano"
+          class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+          placeholder="AAAA"
+          required
+        />
+      </div>
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-300 mb-2">Meta de Vendas (R$) *</label>
+      <input
+        type="number"
+        step="0.01"
+        id="meta-valorMeta"
+        class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+        placeholder="50000.00"
+        required
+      />
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-300 mb-2">Meta de Comissão (R$) *</label>
+      <input
+        type="number"
+        step="0.01"
+        id="meta-comissaoMeta"
+        class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+        placeholder="15000.00"
+        required
+      />
+    </div>
+    <div class="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
+      <p class="text-sm text-purple-400">
+        🎯 Defina metas realistas e acompanhe seu progresso mensalmente!
+      </p>
+    </div>
+  </template>
+
+  <!-- Script Principal -->
+  <script>
+/* SCRIPT PRINCIPAL - SUBSTITUIR O BLOCO ORIGINAL */
+(() => {
+  // --- CONFIGURAÇÃO INICIAL ---
+  const DB_NAME = 'CRM_VENDAS_DB';
+  const DB_VERSION = 1;
+  const STORES = ['clientes', 'vendas', 'comissoes', 'metas'];
+  let db;
+
+  let clientes = [];
+  let vendas = [];
+  let comissoes = [];
+  let metas = [];
+
+  let lineChartInstance = null;
+  let pieChartInstance = null;
+
+  const tabelaComissoesDefault = [
+    { produto: 'Móvel', tipoCliente: 'Novo', operadora: 'Vivo', comissao: 230, tipo: 'percentual' },
+    { produto: 'Móvel', tipoCliente: 'Novo', operadora: 'Claro', comissao: 300, tipo: 'percentual' },
+    { produto: 'Móvel', tipoCliente: 'Novo', operadora: 'TIM', comissao: 500, tipo: 'percentual' },
+    { produto: 'Móvel', tipoCliente: 'Base', operadora: 'Vivo', comissao: 172, tipo: 'percentual' },
+    { produto: 'Móvel', tipoCliente: 'Base', operadora: 'Claro', comissao: 300, tipo: 'percentual' },
+    { produto: 'Móvel', tipoCliente: 'Base', operadora: 'TIM', comissao: 450, tipo: 'percentual' },
+    { produto: 'Banda Larga', tipoCliente: 'Novo', operadora: 'Vivo', comissao: 140, tipo: 'percentual' },
+    { produto: 'Banda Larga', tipoCliente: 'Novo', operadora: 'Claro', comissao: 200, tipo: 'percentual' },
+    { produto: 'Banda Larga', tipoCliente: 'Novo', operadora: 'TIM', comissao: 200, tipo: 'percentual' },
+    { produto: 'Banda Larga', tipoCliente: 'Base', operadora: 'Vivo', comissao: 120, tipo: 'percentual' },
+    { produto: 'Banda Larga', tipoCliente: 'Base', operadora: 'Claro', comissao: 200, tipo: 'percentual' },
+    { produto: 'Banda Larga', tipoCliente: 'Base', operadora: 'TIM', comissao: 200, tipo: 'percentual' },
+    { produto: 'Avançado', tipoCliente: 'Novo', operadora: 'Vivo', comissao: 127, tipo: 'percentual' },
+    { produto: 'Avançado', tipoCliente: 'Base', operadora: 'Vivo', comissao: 70, tipo: 'percentual' },
+    { produto: 'Locação', tipoCliente: 'Novo', operadora: 'Vivo', comissao: 127, tipo: 'percentual' },
+    { produto: 'Locação', tipoCliente: 'Base', operadora: 'Vivo', comissao: 70, tipo: 'percentual' },
+    { produto: 'Energia A', tipoCliente: 'Novo', operadora: 'Vivo', comissao: 50, tipo: 'percentual' },
+    { produto: 'Energia A', tipoCliente: 'Base', operadora: 'Vivo', comissao: 50, tipo: 'percentual' },
+    { produto: 'Energia B', tipoCliente: 'Novo', operadora: 'Evolua', comissao: 50, tipo: 'percentual' },
+    { produto: 'Energia B', tipoCliente: 'Base', operadora: 'Evolua', comissao: 50, tipo: 'percentual' }
+  ];
+
+  const faixasEnergiaB = [
+    { min: 1, max: 3000, comissao: 70 },
+    { min: 3001, max: 10000, comissao: 75 },
+    { min: 10001, max: 20000, comissao: 80 },
+    { min: 20001, max: 49999, comissao: 90 },
+    { min: 50000, max: Infinity, comissao: 100 }
+  ];
+
+  // DOM references (existem no HTML; o script roda ao final do body)
+  const modal = document.getElementById('modal');
+  const modalTitle = document.getElementById('modal-title');
+  const modalFormContent = document.getElementById('modal-form-content');
+  const modalTypeInput = document.getElementById('modal-type-input');
+  const editingIdInput = document.getElementById('modal-editing-id-input');
+  const modalForm = document.getElementById('modal-form');
+  const modalErrorMessage = document.getElementById('modal-error-message');
+  const clientProfileModal = document.getElementById('client-profile-modal');
+  const confirmModal = document.getElementById('confirm-modal');
+  const importClientesModal = document.getElementById('import-clientes-modal');
+  const importClientesError = document.getElementById('import-clientes-error');
+  const importPreviewBody = document.getElementById('import-preview-body');
+  const importPreviewCount = document.getElementById('import-preview-count');
+  const importMappings = {
+    cpfCnpj: document.getElementById('map-cpfCnpj'),
+    nome: document.getElementById('map-nome'),
+    telefone: document.getElementById('map-telefone'),
+    email: document.getElementById('map-email'),
+    cep: document.getElementById('map-cep'),
+    logradouro: document.getElementById('map-logradouro'),
+    numero: document.getElementById('map-numero'),
+    complemento: document.getElementById('map-complemento'),
+    bairro: document.getElementById('map-bairro'),
+    cidade: document.getElementById('map-cidade'),
+    uf: document.getElementById('map-uf'),
+    contaContrato: document.getElementById('map-contaContrato'),
+    dataNascimento: document.getElementById('map-dataNascimento'),
+  };
+  let importRowsCache = [];
+  let importHeadersCache = [];
+
+  // Modal e mapeamentos para importação de vendas
+  const importVendasModal = document.getElementById('import-vendas-modal');
+  const importVendasError = document.getElementById('import-vendas-error');
+  const importVendasPreviewBody = document.getElementById('import-vendas-preview-body');
+  const importVendasPreviewCount = document.getElementById('import-vendas-preview-count');
+  const importVendasMappings = {
+    data: document.getElementById('map-vendas-data'),
+    cliente: document.getElementById('map-vendas-cliente'),
+    produto: document.getElementById('map-vendas-produto'),
+    operadora: document.getElementById('map-vendas-operadora'),
+    tipoCliente: document.getElementById('map-vendas-tipoCliente'),
+    valor: document.getElementById('map-vendas-valor'),
+    comissao: document.getElementById('map-vendas-comissao'),
+    status: document.getElementById('map-vendas-status'),
+  };
+  let importVendasRowsCache = [];
+  let importVendasHeadersCache = [];
+
+  let deleteResolver = null;
+
+  // --- INICIALIZAÇÃO ---
+  window.addEventListener('load', async () => {
+    try {
+      if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+      await initDB();
+      await renderAll();
+      setupEventListeners();
+    } catch (err) {
+      console.error('Erro na inicialização:', err);
+    }
+  });
+
+  // --- IndexedDB helpers ---
+  function initDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+      request.onupgradeneeded = (event) => {
+        const idb = event.target.result;
+        STORES.forEach(store => {
+          if (!idb.objectStoreNames.contains(store)) {
+            idb.createObjectStore(store, { keyPath: 'id', autoIncrement: true });
+          }
+        });
+      };
+
+      request.onsuccess = (event) => {
+        db = event.target.result;
+        checkAndLoadDefaultComissoes().then(resolve).catch(reject);
+      };
+
+      request.onerror = (event) => {
+        console.error('Erro ao abrir o DB:', event.target.error);
+        reject(event.target.error);
+      };
+    });
+  }
+
+  function checkAndLoadDefaultComissoes() {
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction('comissoes', 'readonly');
+        const store = tx.objectStore('comissoes');
+        const countReq = store.count();
+
+        countReq.onsuccess = () => {
+          if (countReq.result === 0) {
+            const wtx = db.transaction('comissoes', 'readwrite');
+            const wstore = wtx.objectStore('comissoes');
+            const items = tabelaComissoesDefault.map(({ produto, tipoCliente, operadora, comissao, tipo }) => ({ produto, tipoCliente, operadora, comissao, tipo }));
+            let ps = items.map(it => new Promise((res, rej) => {
+              const r = wstore.add(it);
+              r.onsuccess = () => res();
+              r.onerror = () => rej(r.error);
+            }));
+            Promise.all(ps).then(() => resolve()).catch(reject);
+          } else resolve();
+        };
+
+        countReq.onerror = (e) => reject(e.target.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  function getAllData(storeName) {
+    return new Promise((resolve, reject) => {
+      if (!db) return reject('DB not initialized');
+      try {
+        const tx = db.transaction(storeName, 'readonly');
+        const store = tx.objectStore(storeName);
+        const req = store.getAll();
+        req.onsuccess = e => resolve(e.target.result || []);
+        req.onerror = e => reject(e.target.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  function addData(storeName, data) {
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
+        const copy = Object.assign({}, data);
+        delete copy.id;
+        const req = store.add(copy);
+        req.onsuccess = e => resolve(e.target.result);
+        req.onerror = e => reject(e.target.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  function updateData(storeName, data) {
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
+        data.id = parseInt(data.id, 10);
+        const req = store.put(data);
+        req.onsuccess = e => resolve(e.target.result);
+        req.onerror = e => reject(e.target.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  function deleteData(storeName, id) {
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
+        const req = store.delete(parseInt(id, 10));
+        req.onsuccess = () => resolve();
+        req.onerror = e => reject(e.target.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  // --- RENDER / UTIL ---
+  function formatCurrency(value) {
+    return (Number(value) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  function formatDate(dateString) {
+    if (!dateString) return 'N/A';
+    const d = new Date(dateString);
+    if (isNaN(d)) {
+      const parts = dateString.split('-');
+      if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      return dateString;
+    }
+    return d.toLocaleDateString('pt-BR');
+  }
+
+  function calcularComissao(venda) {
+    if (!venda) return 0;
+    if (venda.produto === 'Energia B') {
+      const valor = Number(venda.valorVenda) || 0;
+      const faixa = faixasEnergiaB.find(f => valor >= f.min && valor <= f.max);
+      return faixa ? (valor * faixa.comissao / 100) : 0;
+    }
+    const regra = comissoes.find(c =>
+      c.produto === venda.produto &&
+      c.operadora === venda.operadora &&
+      c.tipoCliente === venda.tipoCliente
+    );
+    if (regra) {
+      return (Number(venda.valorVenda) || 0) * (Number(regra.comissao || 0) / 100);
+    }
+    return 0;
+  }
+
+  function getDateRangeFromFilter(filterValue) {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    let start, end;
+    const primeiroDiaDoMes = (date) => new Date(date.getFullYear(), date.getMonth(), 1);
+    const ultimoDiaDoMes = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0);
+    switch (filterValue) {
+      case 'last_month': {
+        const mesPassado = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+        start = primeiroDiaDoMes(mesPassado);
+        end = ultimoDiaDoMes(mesPassado);
+        break;
+      }
+      case 'this_quarter': {
+        const trimestre = Math.floor(hoje.getMonth() / 3);
+        start = new Date(hoje.getFullYear(), trimestre * 3, 1);
+        end = new Date(hoje.getFullYear(), trimestre * 3 + 3, 0);
+        break;
+      }
+      case 'last_30_days': {
+        end = new Date(hoje);
+        start = new Date(hoje);
+        start.setDate(hoje.getDate() - 30);
+        break;
+      }
+      case 'this_month':
+      default:
+        start = primeiroDiaDoMes(hoje);
+        end = ultimoDiaDoMes(hoje);
+        break;
+    }
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+  }
+
+  function filterVendasByDateRange(vendasArray, range) {
+    return (vendasArray || []).filter(v => {
+      if (!v.dataConclusao || v.status !== 'Concluído') return false;
+      const dataVenda = new Date(v.dataConclusao + 'T00:00:00');
+      return dataVenda >= range.start && dataVenda <= range.end;
+    });
+  }
+
+  // --- RENDER ALL ---
+  async function renderAll() {
+    try {
+      [clientes, vendas, comissoes, metas] = await Promise.all([
+        getAllData('clientes'),
+        getAllData('vendas'),
+        getAllData('comissoes'),
+        getAllData('metas')
+      ]);
+      renderDashboard();
+      renderVendasTable();
+      renderClientesGrid();
+      renderPosVenda();
+      renderComissoesTable();
+      renderMetasGrid();
+      updateDynamicSelects();
+    } catch (err) {
+      console.error('renderAll error:', err);
+    }
+  }
+
+  // --- DASHBOARD ---
+  function renderDashboard() {
+    const filterEl = document.getElementById('dashboard-period-filter');
+    const filterValue = filterEl ? filterEl.value : 'this_month';
+    const range = getDateRangeFromFilter(filterValue);
+
+    const vendasPeriodo = filterVendasByDateRange(vendas, range);
+    const totalClientes = (clientes || []).length;
+    const totalVendasConcluidas = vendasPeriodo.reduce((acc, v) => acc + (Number(v.valorVenda) || 0), 0);
+    const totalComissoesPeriodo = vendasPeriodo.reduce((acc, v) => acc + calcularComissao(v), 0);
+
+    const elTotalClientes = document.getElementById('metric-totalClientes');
+    const elVendasPeriodo = document.getElementById('metric-vendasPeriodo');
+    const elTotalVendas = document.getElementById('metric-totalVendas');
+    const elTotalComissoes = document.getElementById('metric-totalComissoes');
+
+    if (elTotalClientes) elTotalClientes.textContent = totalClientes;
+    if (elVendasPeriodo) elVendasPeriodo.textContent = vendasPeriodo.length;
+    if (elTotalVendas) elTotalVendas.textContent = formatCurrency(totalVendasConcluidas);
+    if (elTotalComissoes) elTotalComissoes.textContent = formatCurrency(totalComissoesPeriodo);
+
+    const metaPeriodo = (metas || []).find(m =>
+      Number(m.mes) === (range.start.getMonth() + 1) &&
+      Number(m.ano) === range.start.getFullYear()
+    );
+
+    const container = document.getElementById('metas-progresso-content');
+    const emptyEl = document.getElementById('metas-progresso-empty');
+
+    if (metaPeriodo && container && emptyEl) {
+      emptyEl.classList.add('hidden');
+      const metaVendas = Number(metaPeriodo.valorMeta) || 0;
+      const metaComissao = Number(metaPeriodo.comissaoMeta) || 0;
+      const progressoVendas = metaVendas > 0 ? (totalVendasConcluidas / metaVendas) * 100 : 0;
+      const progressoComissao = metaComissao > 0 ? (totalComissoesPeriodo / metaComissao) * 100 : 0;
+
+      container.innerHTML = `
+        <div>
+          <div class="flex justify-between mb-2">
+            <span class="text-slate-400">Meta de Vendas (${formatCurrency(metaVendas)})</span>
+            <span class="text-white font-bold">${progressoVendas.toFixed(1)}%</span>
+          </div>
+          <div class="w-full bg-slate-700 rounded-full h-3">
+            <div class="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full transition-all" style="width: ${Math.min(progressoVendas,100)}%"></div>
+          </div>
+          <p class="text-sm text-slate-400 mt-2">${formatCurrency(totalVendasConcluidas)} / ${formatCurrency(metaVendas)}</p>
+        </div>
+        <div>
+          <div class="flex justify-between mb-2">
+            <span class="text-slate-400">Meta de Comissão (${formatCurrency(metaComissao)})</span>
+            <span class="text-white font-bold">${progressoComissao.toFixed(1)}%</span>
+          </div>
+          <div class="w-full bg-slate-700 rounded-full h-3">
+            <div class="bg-gradient-to-r from-green-500 to-emerald-600 h-3 rounded-full transition-all" style="width: ${Math.min(progressoComissao,100)}%"></div>
+          </div>
+          <p class="text-sm text-slate-400 mt-2">${formatCurrency(totalComissoesPeriodo)} / ${formatCurrency(metaComissao)}</p>
+        </div>
+      `;
+    } else if (container && emptyEl) {
+      container.innerHTML = '';
+      emptyEl.classList.remove('hidden');
+    }
+
+    renderDashboardCharts(vendasPeriodo);
+    renderVendasRecentes();
+    if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+  }
+
+  function renderDashboardCharts(vendasFiltradas = []) {
+    const lineEl = document.getElementById('line-chart');
+    const pieEl = document.getElementById('pie-chart');
+
+    if (!lineEl || !pieEl || typeof Chart === 'undefined') return;
+
+    const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const anoAtual = new Date().getFullYear();
+    const vendasAno = (vendas || []).filter(v => v.dataConclusao && v.status === 'Concluído' && (new Date(v.dataConclusao)).getFullYear() === anoAtual);
+
+    const lineData = meses.map((m, idx) => {
+      const vendasMes = vendasAno.filter(v => (new Date(v.dataConclusao)).getMonth() === idx);
+      const totalVendas = vendasMes.reduce((acc, v) => acc + (Number(v.valorVenda) || 0), 0);
+      const totalComissoes = vendasMes.reduce((acc, v) => acc + calcularComissao(v), 0);
+      return { vendas: totalVendas, comissoes: totalComissoes };
+    });
+
+    const lineCtx = lineEl.getContext('2d');
+    if (lineChartInstance) lineChartInstance.destroy();
+    lineChartInstance = new Chart(lineCtx, {
+      type: 'line',
+      data: {
+        labels: meses,
+        datasets: [
+          { label: 'Vendas (R$)', data: lineData.map(d => d.vendas), borderColor: '#3b82f6', backgroundColor: '#3b82f630', fill: false, tension: 0.3 },
+          { label: 'Comissões (R$)', data: lineData.map(d => d.comissoes), borderColor: '#8b5cf6', backgroundColor: '#8b5cf630', fill: false, tension: 0.3 }
+        ]
+      },
+      options: chartOptions(true)
+    });
+
+    const distribuicao = {};
+    vendasFiltradas.forEach(v => { distribuicao[v.produto] = (distribuicao[v.produto] || 0) + 1; });
+    const produtoData = Object.keys(distribuicao).map(k => ({ name: k, value: distribuicao[k] }));
+    const pieColors = ['#3b82f6','#8b5cf6','#ec4899','#f59e0b','#10b981','#06b6d4'];
+
+    const pieCtx = pieEl.getContext('2d');
+    if (pieChartInstance) pieChartInstance.destroy();
+    pieChartInstance = new Chart(pieCtx, {
+      type: 'pie',
+      data: {
+        labels: produtoData.map(d => d.name),
+        datasets: [{ data: produtoData.map(d => d.value), backgroundColor: pieColors, borderColor: '#1e293b', borderWidth: 2 }]
+      },
+      options: chartOptions(false)
+    });
+  }
+
+  function chartOptions(isLineChart) {
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: isLineChart ? 'top' : 'right', labels: { color: '#94a3b8' } },
+        tooltip: { backgroundColor: '#1e293b', titleColor: '#e2e8f0', bodyColor: '#e2e8f0', borderColor: '#334155', borderWidth: 1 }
+      }
+    };
+
+    if (isLineChart) {
+      options.scales = {
+        x: { ticks: { color: '#94a3b8' }, grid: { color: '#33415550' } },
+        y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+      };
+      options.plugins.tooltip.callbacks = {
+        label: (context) => {
+          let label = context.dataset.label || '';
+          if (label) label += ': ';
+          const val = context.parsed && (context.parsed.y !== undefined ? context.parsed.y : context.parsed);
+          label += formatCurrency(val);
+          return label;
+        }
+      };
+    } else {
+      options.plugins.tooltip = {
+        callbacks: {
+          label: (context) => {
+            const label = context.label || '';
+            const value = context.parsed;
+            const total = context.chart.data.datasets[0].data.reduce((a,b)=>a+(Number(b)||0),0);
+            const percentage = total > 0 ? ((Number(value) / total) * 100).toFixed(1) : 0;
+            return `${label}: ${value} (${percentage}%)`;
+          }
+        }
+      };
+    }
+    return options;
+  }
+
+  // --- VENDAS RECENTES (fix sort by date or id) ---
+  function renderVendasRecentes() {
+    const container = document.getElementById('vendas-recentes-container');
+    const emptyEl = document.getElementById('vendas-recentes-empty');
+    if (!container || !emptyEl) return;
+
+    const timeOrId = v => {
+      if (!v) return 0;
+      const d = v.dataRegistro ? new Date(v.dataRegistro).getTime() : (v.dataConclusao ? new Date(v.dataConclusao).getTime() : 0);
+      return isNaN(d) ? (Number(v.id) || 0) : d;
+    };
+
+    const recentes = [...(vendas || [])].sort((a,b) => timeOrId(b) - timeOrId(a)).slice(0,5);
+
+    if (recentes.length === 0) {
+      container.innerHTML = '';
+      emptyEl.classList.remove('hidden');
+      return;
+    }
+
+    emptyEl.classList.add('hidden');
+    container.innerHTML = recentes.map(venda => {
+      const cliente = (clientes || []).find(c => c.id === venda.clienteId);
+      return `
+        <div class="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
+          <div>
+            <p class="text-white font-medium">${cliente?.nome || 'Cliente não encontrado'}</p>
+            <p class="text-sm text-slate-400">${venda.produto} - ${venda.operadora}</p>
+          </div>
+          <div class="text-right">
+            <p class="text-white font-bold">${formatCurrency(venda.valorVenda)}</p>
+            ${getStatusBadge(venda.status)}
+          </div>
+        </div>
+      `;
+    }).join('');
+    if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+  }
+
+  // --- VENDAS (tabela) ---
+  function renderVendasTable() {
+    const searchEl = document.getElementById('search-vendas');
+    const statusEl = document.getElementById('filter-vendas-status');
+    const monthEl = document.getElementById('filter-vendas-month');
+
+    const searchTerm = searchEl ? (searchEl.value || '').toLowerCase() : '';
+    const filterStatus = statusEl ? statusEl.value : '';
+    const filterMonth = monthEl ? monthEl.value : '';
+
+    const vendasFiltradas = (vendas || []).filter(venda => {
+      const cliente = (clientes || []).find(c => c.id === venda.clienteId);
+      const matchSearch = !searchTerm || (cliente?.nome || '').toLowerCase().includes(searchTerm);
+      const matchStatus = !filterStatus || venda.status === filterStatus;
+      const matchMonth = !filterMonth || (venda.dataConclusao && venda.dataConclusao.startsWith(filterMonth));
+      return matchSearch && matchStatus && matchMonth;
+    });
+
+    const tableBody = document.getElementById('vendas-table-body');
+    const emptyEl = document.getElementById('vendas-table-empty');
+    if (!tableBody || !emptyEl) return;
+
+    if (vendasFiltradas.length === 0) {
+      tableBody.innerHTML = '';
+      emptyEl.classList.remove('hidden');
+      return;
+    }
+
+    emptyEl.classList.add('hidden');
+    tableBody.innerHTML = vendasFiltradas.map(venda => {
+      const cliente = (clientes || []).find(c => c.id === venda.clienteId);
+      return `
+        <tr class="hover:bg-slate-700/30 transition-colors">
+          <td class="px-6 py-4 text-white">${cliente?.nome || 'N/A'}</td>
+          <td class="px-6 py-4 text-slate-300">${venda.produto}</td>
+          <td class="px-6 py-4 text-slate-300">${venda.operadora}</td>
+          <td class="px-6 py-4 text-white font-medium">${formatCurrency(venda.valorVenda)}</td>
+          <td class="px-6 py-4 text-green-400 font-medium">${formatCurrency(calcularComissao(venda))}</td>
+          <td class="px-6 py-4">${getStatusBadge(venda.status)}</td>
+          <td class="px-6 py-4">
+            <div class="flex gap-2">
+              <button class="p-2 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-colors btn-edit" data-id="${venda.id}" data-type="venda">
+                <i data-lucide="edit-2" class="w-4 h-4 pointer-events-none"></i>
+              </button>
+              <button class="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors btn-delete" data-id="${venda.id}" data-type="venda">
+                <i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+    if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+  }
+
+  // --- CLIENTES GRID ---
+  function renderClientesGrid() {
+    const container = document.getElementById('clientes-grid-container');
+    const emptyEl = document.getElementById('clientes-grid-empty');
+    if (!container || !emptyEl) return;
+
+    if (!(clientes || []).length) {
+      container.innerHTML = '';
+      emptyEl.classList.remove('hidden');
+      return;
+    }
+
+    emptyEl.classList.add('hidden');
+    container.innerHTML = clientes.map(cliente => {
+      const inicial = cliente.nome ? cliente.nome.charAt(0).toUpperCase() : '?';
+      return `
+        <div class="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700 hover:border-blue-500/50 transition-all">
+          <div class="flex justify-between items-start mb-4">
+            <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
+              ${inicial}
+            </div>
+            <div class="flex gap-2">
+              <button class="p-2 text-gray-400 hover:bg-gray-500/20 rounded-lg transition-colors btn-view-profile" data-id="${cliente.id}" title="Ver Perfil">
+                <i data-lucide="eye" class="w-4 h-4 pointer-events-none"></i>
+              </button>
+              <button class="p-2 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-colors btn-edit" data-id="${cliente.id}" data-type="cliente" title="Editar">
+                <i data-lucide="edit-2" class="w-4 h-4 pointer-events-none"></i>
+              </button>
+              <button class="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors btn-delete" data-id="${cliente.id}" data-type="cliente" title="Excluir">
+                <i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i>
+              </button>
+            </div>
+          </div>
+          <h3 class="text-lg font-bold text-white mb-2">${cliente.nome}</h3>
+          <div class="space-y-1 text-sm text-slate-400">
+            <p>CPF/CNPJ: ${cliente.cpfCnpj || 'N/A'}</p>
+            <p>Tel: ${cliente.telefone || 'N/A'}</p>
+            <p>Email: ${cliente.email || 'N/A'}</p>
+            <p>Aniversário: ${formatDate(cliente.dataNascimento)}</p>
+          </div>
+        </div>
+      `;
+    }).join('');
+    if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+  }
+
+  // --- POSVENDA ---
+  function renderPosVenda() {
+    const container = document.getElementById('posvenda-container');
+    const emptyEl = document.getElementById('posvenda-empty');
+    if (!container || !emptyEl) return;
+
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const lembretes = [];
+
+    (vendas || []).filter(v => v.status === 'Concluído' && v.dataConclusao).forEach(venda => {
+      const dataConclusao = new Date(venda.dataConclusao + 'T00:00:00');
+      const diffTime = Math.abs(hoje - dataConclusao);
+      const diasPassados = Math.round(diffTime / (1000 * 60 * 60 * 24));
+      const cliente = (clientes || []).find(c => c.id === venda.clienteId);
+      const dismissed = venda.posVendaDismissed || [];
+      let tipo = null;
+      if (diasPassados >= 90 && !dismissed.includes(90)) tipo = 90;
+      else if (diasPassados >= 30 && !dismissed.includes(30)) tipo = 30;
+      else if (diasPassados >= 7 && !dismissed.includes(7)) tipo = 7;
+      if (tipo) lembretes.push({ venda, cliente, dias: tipo, tipoText: `${tipo} dias` });
+    });
+
+    if (lembretes.length === 0) {
+      container.innerHTML = '';
+      emptyEl.classList.remove('hidden');
+      return;
+    }
+
+    emptyEl.classList.add('hidden');
+    container.innerHTML = lembretes.map(l => {
+      const telRaw = (l.cliente?.telefone || '').replace(/\D/g, '');
+      let tel = telRaw;
+      if (tel && !tel.startsWith('55')) tel = '55' + tel;
+      return `
+        <div class="bg-gradient-to-r from-orange-500/10 to-red-500/10 border-l-4 border-orange-500 rounded-xl p-6">
+          <div class="flex flex-col sm:flex-row items-start justify-between gap-4">
+            <div class="flex-1">
+              <div class="flex items-center gap-3 mb-2">
+                <i data-lucide="bell" class="w-5 h-5 text-orange-400"></i>
+                <span class="px-3 py-1 bg-orange-500/20 text-orange-400 rounded-full text-sm font-medium">${l.tipoText}</span>
+              </div>
+              <h3 class="text-lg font-bold text-white mb-2">${l.cliente?.nome || 'Cliente não encontrado'}</h3>
+              <div class="space-y-1 text-sm text-slate-400">
+                <p>Produto: ${l.venda.produto} - ${l.venda.operadora}</p>
+                <p>Valor: ${formatCurrency(l.venda.valorVenda)}</p>
+                <p>Data da Venda: ${formatDate(l.venda.dataConclusao)}</p>
+                <p class="mt-2 text-orange-400 font-medium">Entrar em contato para verificar satisfação!</p>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <a href="https://wa.me/${tel}" target="_blank" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium flex items-center gap-2">
+                <i data-lucide="message-circle" class="w-4 h-4"></i> WhatsApp
+              </a>
+              <a href="mailto:${l.cliente?.email}" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium flex items-center gap-2">
+                <i data-lucide="mail" class="w-4 h-4"></i> Email
+              </a>
+              <button class="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors text-sm font-medium flex items-center gap-2 btn-dismiss-lembrete" data-venda-id="${l.venda.id}" data-tipo="${l.dias}">
+                <i data-lucide="check" class="w-4 h-4"></i> Dispensar
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+    if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+  }
+
+  // --- COMISSOES ---
+  function renderComissoesTable() {
+    const tableBody = document.getElementById('comissoes-table-body');
+    const emptyEl = document.getElementById('comissoes-table-empty');
+    if (!tableBody || !emptyEl) return;
+
+    if (!(comissoes || []).length) {
+      tableBody.innerHTML = '';
+      emptyEl.classList.remove('hidden');
+      return;
+    }
+
+    emptyEl.classList.add('hidden');
+    tableBody.innerHTML = comissoes.map(c => `
+      <tr class="hover:bg-slate-700/30 transition-colors">
+        <td class="px-6 py-4 text-white font-medium">${c.produto}</td>
+        <td class="px-6 py-4 text-slate-300">${c.tipoCliente}</td>
+        <td class="px-6 py-4 text-slate-300">${c.operadora}</td>
+        <td class="px-6 py-4 text-green-400 font-bold">${c.comissao}%</td>
+        <td class="px-6 py-4">
+          <div class="flex gap-2">
+            <button class="p-2 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-colors btn-edit" data-id="${c.id}" data-type="comissao">
+              <i data-lucide="edit-2" class="w-4 h-4 pointer-events-none"></i>
+            </button>
+            <button class="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors btn-delete" data-id="${c.id}" data-type="comissao">
+              <i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+    if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+  }
+
+  // --- METAS ---
+  function renderMetasGrid() {
+    const container = document.getElementById('metas-grid-container');
+    const emptyEl = document.getElementById('metas-grid-empty');
+    if (!container || !emptyEl) return;
+
+    if (!(metas || []).length) {
+      container.innerHTML = '';
+      emptyEl.classList.remove('hidden');
+      return;
+    }
+
+    emptyEl.classList.add('hidden');
+    const metasOrdenadas = [...metas].sort((a,b) => {
+      if (Number(a.ano) !== Number(b.ano)) return Number(a.ano) - Number(b.ano);
+      return Number(a.mes) - Number(b.mes);
+    });
+
+    container.innerHTML = metasOrdenadas.map(meta => {
+      const vendasMeta = (vendas || []).filter(v => {
+        if (!v.dataConclusao || v.status !== 'Concluído') return false;
+        const d = new Date(v.dataConclusao + 'T00:00:00');
+        return d.getMonth() === Number(meta.mes) - 1 && d.getFullYear() === Number(meta.ano);
+      });
+      const totalVendas = vendasMeta.reduce((acc,v) => acc + (Number(v.valorVenda)||0),0);
+      const totalComissoes = vendasMeta.reduce((acc,v) => acc + calcularComissao(v), 0);
+      const metaVendas = Number(meta.valorMeta) || 0;
+      const metaComissao = Number(meta.comissaoMeta) || 0;
+      const progressoVendas = metaVendas > 0 ? (totalVendas / metaVendas) * 100 : 0;
+      const progressoComissoes = metaComissao > 0 ? (totalComissoes / metaComissao) * 100 : 0;
+
+      return `
+        <div class="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700 hover:border-blue-500/50 transition-all">
+          <div class="flex justify-between items-start mb-4">
+            <div>
+              <h3 class="text-lg font-bold text-white">${String(meta.mes).padStart(2,'0')}/${meta.ano}</h3>
+              <p class="text-sm text-slate-400">Meta Mensal</p>
+            </div>
+            <div class="flex gap-2">
+              <button class="p-2 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-colors btn-edit" data-id="${meta.id}" data-type="meta">
+                <i data-lucide="edit-2" class="w-4 h-4 pointer-events-none"></i>
+              </button>
+              <button class="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors btn-delete" data-id="${meta.id}" data-type="meta">
+                <i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i>
+              </button>
+            </div>
+          </div>
+          <div class="space-y-4">
+            <div>
+              <div class="flex justify-between mb-2">
+                <span class="text-sm text-slate-400">Meta de Vendas</span>
+                <span class="text-sm text-white font-bold">${progressoVendas.toFixed(1)}%</span>
+              </div>
+              <div class="w-full bg-slate-700 rounded-full h-2">
+                <div class="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full transition-all" style="width:${Math.min(progressoVendas,100)}%"></div>
+              </div>
+              <p class="text-xs text-slate-400 mt-1">${formatCurrency(totalVendas)} / ${formatCurrency(metaVendas)}</p>
+            </div>
+            <div>
+              <div class="flex justify-between mb-2">
+                <span class="text-sm text-slate-400">Meta de Comissão</span>
+                <span class="text-sm text-white font-bold">${progressoComissoes.toFixed(1)}%</span>
+              </div>
+              <div class="w-full bg-slate-700 rounded-full h-2">
+                <div class="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full transition-all" style="width:${Math.min(progressoComissoes,100)}%"></div>
+              </div>
+              <p class="text-xs text-slate-400 mt-1">${formatCurrency(totalComissoes)} / ${formatCurrency(metaComissao)}</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+    if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+  }
+
+  // --- DYNAMIC SELECTS ---
+  function updateDynamicSelects() {
+    // clientes selects (qf-venda-clienteId and venda-clienteId)
+    const selectsClientes = document.querySelectorAll('select[id$="venda-clienteId"]');
+    const optionsClientes = '<option value="">Selecione cliente *</option>' + (clientes || []).map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+    selectsClientes.forEach(select => {
+      const prev = select.value;
+      select.innerHTML = optionsClientes;
+      if (prev) select.value = prev;
+    });
+
+    const produtosUnicos = [...new Set((comissoes || []).map(c => c.produto))];
+    const operadorasUnicas = [...new Set((comissoes || []).map(c => c.operadora))];
+
+    const selectsProdutos = document.querySelectorAll('select[id$="venda-produto"]');
+    const selectsOperadoras = document.querySelectorAll('select[id$="venda-operadora"]');
+    const optionsProdutos = '<option value="">Selecione produto *</option>' + produtosUnicos.sort().map(p => `<option value="${p}">${p}</option>`).join('');
+    const optionsOperadoras = '<option value="">Selecione operadora *</option>' + operadorasUnicas.sort().map(o => `<option value="${o}">${o}</option>`).join('');
+
+    selectsProdutos.forEach(s => { const prev = s.value; s.innerHTML = optionsProdutos; if (prev) s.value = prev; });
+    selectsOperadoras.forEach(s => { const prev = s.value; s.innerHTML = optionsOperadoras; if (prev) s.value = prev; });
+  }
+
+  function getStatusBadge(status) {
+    const colors = { 'Concluído':'bg-green-500/20 text-green-400', 'Cancelado':'bg-red-500/20 text-red-400', 'Negociando':'bg-yellow-500/20 text-yellow-400', 'Aguardando Aceite':'bg-blue-500/20 text-blue-400', 'Inputado':'bg-purple-500/20 text-purple-400' };
+    const cls = colors[status] || 'bg-slate-500/20 text-slate-400';
+    return `<span class="px-3 py-1 rounded-full text-xs font-medium ${cls}">${status}</span>`;
+  }
+
+  // --- MODAIS ---
+  function showModal(type, id=null) {
+    hideModalError();
+    const tpl = document.getElementById(`template-form-${type}`);
+    if (!tpl) return;
+    modalFormContent.innerHTML = tpl.innerHTML;
+    modalTypeInput.value = type;
+    editingIdInput.value = id || '';
+    if (modalForm) modalForm.reset();
+
+    if (type === 'venda') {
+      updateDynamicSelects();
+      setupVendaFormListeners(); // idempotente
+    }
+
+    if (id) {
+      document.getElementById('btn-modal-save').textContent = 'Atualizar';
+      const storeName = (type === 'comissao') ? 'comissoes' : `${type}s`;
+      getAllData(storeName).then(arr => {
+        const item = (arr || []).find(it => Number(it.id) === Number(id));
+        if (item) {
+          Object.keys(item).forEach(key => {
+            const input = document.getElementById(`${type}-${key}`);
+            if (input) input.value = item[key];
+          });
+          if (type === 'venda') {
+            const st = document.getElementById('venda-status');
+            if (st) st.dispatchEvent(new Event('change'));
+            const val = document.getElementById('venda-valorVenda');
+            if (val) val.dispatchEvent(new Event('input'));
+          }
+        }
+      }).catch(err => console.error(err));
+      const titles = { cliente:'Editar Cliente', venda:'Editar Venda', comissao:'Editar Regra de Comissão', meta:'Editar Meta' };
+      modalTitle.textContent = titles[type] || 'Editar';
+    } else {
+      document.getElementById('btn-modal-save').textContent = 'Salvar';
+      const titles = { cliente:'Novo Cliente', venda:'Nova Venda', comissao:'Nova Regra de Comissão', meta:'Nova Meta' };
+      modalTitle.textContent = titles[type] || 'Novo';
+      if (type === 'meta') {
+        const anoEl = document.getElementById('meta-ano');
+        if (anoEl) anoEl.value = new Date().getFullYear();
+      }
+    }
+
+    if (modal) modal.classList.remove('hidden');
+    if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+  }
+
+  function hideModal() {
+    if (modal) modal.classList.add('hidden');
+    if (modalForm) modalForm.reset();
+    if (modalFormContent) modalFormContent.innerHTML = '';
+    if (editingIdInput) editingIdInput.value = '';
+    if (modalTypeInput) modalTypeInput.value = '';
+  }
+
+  function showModalError(msg) {
+    if (!modalErrorMessage) return;
+    modalErrorMessage.textContent = msg;
+    modalErrorMessage.classList.remove('hidden');
+  }
+
+  function hideModalError() {
+    if (!modalErrorMessage) return;
+    modalErrorMessage.textContent = '';
+    modalErrorMessage.classList.add('hidden');
+  }
+
+  function showClientProfileModal(id) {
+    const cliente = (clientes || []).find(c => Number(c.id) === Number(id));
+    if (!cliente) return;
+    document.getElementById('client-profile-name').textContent = cliente.nome || '';
+    document.getElementById('client-profile-cpfCnpj').textContent = cliente.cpfCnpj || '';
+    document.getElementById('client-profile-telefone').textContent = cliente.telefone || '';
+    document.getElementById('client-profile-email').textContent = cliente.email || 'N/A';
+    document.getElementById('client-profile-dataNascimento').textContent = formatDate(cliente.dataNascimento);
+    const endereco = cliente.endereco || {};
+    const enderecoText = [endereco.logradouro, endereco.numero, endereco.complemento, endereco.bairro, endereco.cidade, endereco.uf, endereco.cep ? ('CEP ' + endereco.cep) : '']
+      .filter(Boolean).join(' • ');
+    const elEnd = document.getElementById('client-profile-endereco');
+    if (elEnd) elEnd.textContent = enderecoText || 'N/A';
+    const elConta = document.getElementById('client-profile-contaContrato');
+    if (elConta) elConta.textContent = cliente.contaContrato || 'N/A';
+
+
+    const vendasCliente = (vendas || []).filter(v => Number(v.clienteId) === Number(cliente.id));
+    const tbody = document.getElementById('client-profile-vendas-body');
+    const emptyEl = document.getElementById('client-profile-vendas-empty');
+    if (!tbody || !emptyEl) return;
+
+    if (!vendasCliente.length) {
+      tbody.innerHTML = '';
+      emptyEl.classList.remove('hidden');
+    } else {
+      emptyEl.classList.add('hidden');
+      tbody.innerHTML = vendasCliente.map(v => `
+        <tr class="hover:bg-slate-700/30">
+          <td class="px-4 py-3 text-sm text-white">${v.produto}</td>
+          <td class="px-4 py-3 text-sm text-white">${formatCurrency(v.valorVenda)}</td>
+          <td class="px-4 py-3 text-sm text-green-400">${formatCurrency(calcularComissao(v))}</td>
+          <td class="px-4 py-3 text-sm text-slate-300">${formatDate(v.dataConclusao || v.dataRegistro)}</td>
+          <td class="px-4 py-3 text-sm">${getStatusBadge(v.status)}</td>
+        </tr>
+      `).join('');
+    }
+
+    if (clientProfileModal) clientProfileModal.classList.remove('hidden');
+    if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+  }
+
+  function hideClientProfileModal() {
+    if (clientProfileModal) clientProfileModal.classList.add('hidden');
+  }
+
+  function showConfirmModal(title, text) {
+    const t = document.getElementById('confirm-modal-title');
+    const tx = document.getElementById('confirm-modal-text');
+    if (t) t.textContent = title;
+    if (tx) tx.textContent = text;
+    if (confirmModal) confirmModal.classList.remove('hidden');
+    if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+    return new Promise(resolve => { deleteResolver = resolve; });
+  }
+
+  function hideConfirmModal() {
+    if (confirmModal) confirmModal.classList.add('hidden');
+    deleteResolver = null;
+  }
+
+  // --- EVENT SETUP ---
+  function setupEventListeners() {
+    const tabsContainer = document.getElementById('tabs-container');
+    if (tabsContainer) {
+      tabsContainer.addEventListener('click', (e) => {
+        const button = e.target.closest('button.tab-btn');
+        if (!button) return;
+        const tabId = button.dataset.tab;
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+          btn.classList.remove('text-white','border-blue-500','bg-slate-700/50');
+          btn.classList.add('text-slate-400','hover:text-white','hover:bg-slate-700/30','border-transparent');
+        });
+        const content = document.getElementById(`tab-${tabId}`);
+        if (content) content.classList.remove('hidden');
+        button.classList.add('text-white','border-blue-500','bg-slate-700/50');
+        button.classList.remove('text-slate-400','hover:text-white','hover:bg-slate-700/30','border-transparent');
+      });
+    }
+
+    const dashboardFilter = document.getElementById('dashboard-period-filter');
+    if (dashboardFilter) dashboardFilter.addEventListener('change', renderDashboard);
+    const exportVendasDash = document.getElementById('btn-export-vendas-dash');
+    if (exportVendasDash) exportVendasDash.addEventListener('click', () => exportToCSV('vendas'));
+
+    const searchVendas = document.getElementById('search-vendas');
+    const filterStatus = document.getElementById('filter-vendas-status');
+    const filterMonth = document.getElementById('filter-vendas-month');
+    const btnExportVendas = document.getElementById('btn-export-vendas');
+    const btnNovaVenda = document.getElementById('btn-nova-venda');
+
+    if (searchVendas) searchVendas.addEventListener('input', renderVendasTable);
+    if (filterStatus) filterStatus.addEventListener('change', renderVendasTable);
+    if (filterMonth) filterMonth.addEventListener('change', renderVendasTable);
+    if (btnExportVendas) btnExportVendas.addEventListener('click', () => exportToCSV('vendas'));
+    if (btnNovaVenda) btnNovaVenda.addEventListener('click', () => showModal('venda'));
+
+    const btnExportClientes = document.getElementById('btn-export-clientes');
+    const btnNovoCliente = document.getElementById('btn-novo-cliente');
+    if (btnExportClientes) btnExportClientes.addEventListener('click', () => exportToCSV('clientes'));
+    const btnImportClientes = document.getElementById('btn-import-clientes');
+    const inputImportClientes = document.getElementById('input-import-clientes');
+    const btnImportClientesClose = document.getElementById('btn-import-clientes-close');
+    const btnImportClientesCancel = document.getElementById('btn-import-clientes-cancel');
+    const btnImportClientesRun = document.getElementById('btn-import-clientes-run');
+
+    if (btnImportClientes && inputImportClientes) {
+      btnImportClientes.addEventListener('click', () => inputImportClientes.click());
+      inputImportClientes.addEventListener('change', async (ev) => {
+        const file = ev.target.files && ev.target.files[0];
+        if (!file) return;
+        await handleImportClientesFile(file);
+        ev.target.value = '';
+      });
+    }
+    if (btnImportClientesClose) btnImportClientesClose.addEventListener('click', hideImportClientesModal);
+    if (btnImportClientesCancel) btnImportClientesCancel.addEventListener('click', hideImportClientesModal);
+    if (btnImportClientesRun) btnImportClientesRun.addEventListener('click', runImportClientes);
+
+    // Event listeners para importação de vendas
+    const btnImportVendas = document.getElementById('btn-import-vendas');
+    const inputImportVendas = document.getElementById('input-import-vendas');
+    if (btnImportVendas && inputImportVendas) {
+      btnImportVendas.addEventListener('click', () => inputImportVendas.click());
+      inputImportVendas.addEventListener('change', async (ev) => {
+        const file = ev.target.files && ev.target.files[0];
+        if (!file) return;
+        await handleImportVendasFile(file);
+        ev.target.value = '';
+      });
+    }
+
+    const btnImportVendasClose = document.getElementById('btn-import-vendas-close');
+    const btnImportVendasCancel = document.getElementById('btn-import-vendas-cancel');
+    const btnImportVendasRun = document.getElementById('btn-import-vendas-run');
+    if (btnImportVendasClose) btnImportVendasClose.addEventListener('click', hideImportVendasModal);
+    if (btnImportVendasCancel) btnImportVendasCancel.addEventListener('click', hideImportVendasModal);
+    if (btnImportVendasRun) btnImportVendasRun.addEventListener('click', runImportVendas);
+
+    if (btnNovoCliente) btnNovoCliente.addEventListener('click', () => showModal('cliente'));
+    const clientesGrid = document.getElementById('clientes-grid-container');
+    if (clientesGrid) clientesGrid.addEventListener('click', e => {
+      const profileBtn = e.target.closest('.btn-view-profile');
+      if (profileBtn) showClientProfileModal(profileBtn.dataset.id);
+    });
+    const btnClientProfileClose = document.getElementById('btn-client-profile-close');
+    if (btnClientProfileClose) btnClientProfileClose.addEventListener('click', hideClientProfileModal);
+
+    const btnNovaComissao = document.getElementById('btn-nova-comissao');
+    const btnNovaMeta = document.getElementById('btn-nova-meta');
+    if (btnNovaComissao) btnNovaComissao.addEventListener('click', () => showModal('comissao'));
+    if (btnNovaMeta) btnNovaMeta.addEventListener('click', () => showModal('meta'));
+
+    document.body.addEventListener('click', async (e) => {
+      const target = e.target.closest('.btn-edit, .btn-delete');
+      if (!target) return;
+      const id = target.dataset.id;
+      const type = target.dataset.type;
+      if (target.classList.contains('btn-edit')) showModal(type, id);
+      else if (target.classList.contains('btn-delete')) {
+        const confirmed = await showConfirmModal(`Excluir ${type === 'comissao' ? 'Regra' : type}`, `Você realmente deseja excluir este ${type}? Esta ação não pode ser desfeita.`);
+        if (confirmed) {
+          try {
+            const store = (type === 'comissao') ? 'comissoes' : `${type}s`;
+            await deleteData(store, id);
+            await renderAll();
+          } catch (err) { console.error('Erro ao excluir:', err); }
+        }
+      }
+    });
+
+    const posvendaContainer = document.getElementById('posvenda-container');
+    if (posvendaContainer) posvendaContainer.addEventListener('click', async (e) => {
+      const dismissBtn = e.target.closest('.btn-dismiss-lembrete');
+      if (!dismissBtn) return;
+      const vendaId = parseInt(dismissBtn.dataset.vendaId,10);
+      const tipo = parseInt(dismissBtn.dataset.tipo,10);
+      try {
+        const venda = (vendas || []).find(v => Number(v.id) === vendaId);
+        if (venda) {
+          const dismissed = venda.posVendaDismissed || [];
+          if (!dismissed.includes(tipo)) dismissed.push(tipo);
+          venda.posVendaDismissed = dismissed;
+          await updateData('vendas', venda);
+          await renderAll();
+        }
+      } catch (err) { console.error(err); }
+    });
+
+    const btnConfirmCancel = document.getElementById('btn-confirm-cancel');
+    const btnConfirmDelete = document.getElementById('btn-confirm-delete');
+    if (btnConfirmCancel) btnConfirmCancel.addEventListener('click', () => { if (deleteResolver) deleteResolver(false); hideConfirmModal(); });
+    if (btnConfirmDelete) btnConfirmDelete.addEventListener('click', () => { if (deleteResolver) deleteResolver(true); hideConfirmModal(); });
+
+    const btnModalClose = document.getElementById('btn-modal-close');
+    const btnModalCancel = document.getElementById('btn-modal-cancel');
+    if (btnModalClose) btnModalClose.addEventListener('click', hideModal);
+    if (btnModalCancel) btnModalCancel.addEventListener('click', hideModal);
+    if (modalForm) modalForm.addEventListener('submit', handleModalSave);
+
+    const quickFormsPanel = document.getElementById('quick-forms-panel');
+    const btnOpenQuickForms = document.getElementById('btn-open-quick-forms');
+    const btnCloseQuickForms = document.getElementById('btn-close-quick-forms');
+    if (btnOpenQuickForms && quickFormsPanel) btnOpenQuickForms.addEventListener('click', () => { quickFormsPanel.classList.remove('translate-x-full'); if (window.lucide) lucide.createIcons(); });
+    if (btnCloseQuickForms && quickFormsPanel) btnCloseQuickForms.addEventListener('click', () => quickFormsPanel.classList.add('translate-x-full'));
+
+    const btnNotificacoes = document.getElementById('btn-notificacoes');
+    if (btnNotificacoes) btnNotificacoes.addEventListener('click', requestNotificationPermission);
+
+    setupQuickFormListeners();
+  }
+
+  // --- VENDAS FORM LISTENERS (idempotente) ---
+  function setupVendaFormListeners() {
+    const statusSelect = document.getElementById('venda-status');
+    const dataConclusaoContainer = document.getElementById('venda-data-conclusao-container');
+    const dataConclusaoInput = document.getElementById('venda-dataConclusao');
+    const comissaoContainer = document.getElementById('venda-comissao-estimada');
+    const comissaoValor = document.getElementById('venda-comissao-valor');
+
+    if (!statusSelect) return;
+    if (statusSelect.dataset.listenersAttached) return;
+    statusSelect.dataset.listenersAttached = '1';
+
+    statusSelect.addEventListener('change', () => {
+      if (statusSelect.value === 'Concluído') {
+        if (dataConclusaoContainer) dataConclusaoContainer.classList.remove('hidden');
+        if (dataConclusaoInput && !dataConclusaoInput.value) dataConclusaoInput.value = new Date().toISOString().split('T')[0];
+      } else {
+        if (dataConclusaoContainer) dataConclusaoContainer.classList.add('hidden');
+        if (dataConclusaoInput) dataConclusaoInput.value = '';
+      }
+    });
+
+    const inputs = ['venda-produto','venda-operadora','venda-tipoCliente','venda-valorVenda'].map(id => document.getElementById(id)).filter(Boolean);
+    const updateEstimativa = () => {
+      const vendaParcial = {
+        produto: (document.getElementById('venda-produto')?.value) || '',
+        operadora: (document.getElementById('venda-operadora')?.value) || '',
+        tipoCliente: (document.getElementById('venda-tipoCliente')?.value) || '',
+        valorVenda: (document.getElementById('venda-valorVenda')?.value) || 0
+      };
+      if (vendaParcial.produto && vendaParcial.operadora && vendaParcial.tipoCliente && Number(vendaParcial.valorVenda) > 0) {
+        const com = calcularComissao(vendaParcial);
+        if (comissaoValor) comissaoValor.textContent = formatCurrency(com);
+        if (comissaoContainer) comissaoContainer.classList.remove('hidden');
+      } else {
+        if (comissaoContainer) comissaoContainer.classList.add('hidden');
+      }
+    };
+    inputs.forEach(inp => inp.addEventListener('input', updateEstimativa));
+  }
+
+  // --- QUICK FORMS ---
+  function setupQuickFormListeners() {
+    const quickFormMessage = document.getElementById('quick-form-message');
+    function showQuickFormMessage(message, isError=false) {
+      if (!quickFormMessage) return;
+      quickFormMessage.textContent = message;
+      quickFormMessage.className = 'rounded-lg p-3 text-sm mb-4';
+      quickFormMessage.classList.toggle('bg-green-500/10', !isError);
+      quickFormMessage.classList.toggle('border-green-500/30', !isError);
+      quickFormMessage.classList.toggle('text-green-400', !isError);
+      quickFormMessage.classList.toggle('bg-red-500/10', isError);
+      quickFormMessage.classList.toggle('border-red-500/30', isError);
+      quickFormMessage.classList.toggle('text-red-400', isError);
+      quickFormMessage.classList.remove('hidden');
+      setTimeout(() => { quickFormMessage.classList.add('hidden'); quickFormMessage.textContent = ''; }, 3000);
+    }
+
+    const qfCliente = document.getElementById('quick-form-cliente');
+    if (qfCliente) {
+      qfCliente.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+          nome: document.getElementById('qf-cliente-nome')?.value.trim(),
+          cpfCnpj: document.getElementById('qf-cliente-cpfCnpj')?.value.trim(),
+          telefone: document.getElementById('qf-cliente-telefone')?.value.trim(),
+          email: document.getElementById('qf-cliente-email')?.value.trim(),
+          dataNascimento: document.getElementById('qf-cliente-dataNascimento')?.value
+        };
+        if (!data.nome || !data.cpfCnpj || !data.telefone) { showQuickFormMessage('Nome, CPF/CNPJ e Telefone são obrigatórios.', true); return; }
+        try { await addData('clientes', data); showQuickFormMessage('Cliente salvo com sucesso!'); qfCliente.reset(); await renderAll(); } catch (err) { showQuickFormMessage('Erro ao salvar cliente.', true); console.error(err); }
+      });
+    }
+
+    const qfVenda = document.getElementById('quick-form-venda');
+    if (qfVenda) {
+      qfVenda.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+          clienteId: parseInt(document.getElementById('qf-venda-clienteId')?.value,10),
+          produto: document.getElementById('qf-venda-produto')?.value,
+          operadora: document.getElementById('qf-venda-operadora')?.value,
+          valorVenda: document.getElementById('qf-venda-valorVenda')?.value,
+          tipoCliente: document.getElementById('qf-venda-tipoCliente')?.value,
+          status: document.getElementById('qf-venda-status')?.value,
+          dataConclusao: document.getElementById('qf-venda-dataConclusao')?.value,
+          dataRegistro: new Date().toISOString().split('T')[0],
+          posVendaDismissed: []
+        };
+        if (!data.clienteId || !data.produto || !data.operadora || !data.valorVenda || !data.tipoCliente) { showQuickFormMessage('Todos os campos * são obrigatórios.', true); return; }
+        if (data.status === 'Concluído' && !data.dataConclusao) { showQuickFormMessage('Data de Conclusão é obrigatória para vendas concluídas.', true); document.getElementById('qf-venda-dataConclusao').classList.remove('hidden'); return; }
+        if (data.status !== 'Concluído') data.dataConclusao = '';
+        try { await addData('vendas', data); showQuickFormMessage('Venda salva com sucesso!'); qfVenda.reset(); document.getElementById('qf-venda-status').value = 'Negociando'; document.getElementById('qf-venda-dataConclusao').classList.add('hidden'); await renderAll(); } catch (err) { showQuickFormMessage('Erro ao salvar venda.', true); console.error(err); }
+      });
+
+      const qfStatus = document.getElementById('qf-venda-status');
+      const qfDataInput = document.getElementById('qf-venda-dataConclusao');
+      if (qfStatus) qfStatus.addEventListener('change', (e) => {
+        if (!qfDataInput) return;
+        if (e.target.value === 'Concluído') { qfDataInput.classList.remove('hidden'); if(!qfDataInput.value) qfDataInput.value = new Date().toISOString().split('T')[0]; }
+        else { qfDataInput.classList.add('hidden'); qfDataInput.value = ''; }
+      });
+    }
+  }
+
+  // --- MODAL SAVE ---
+  async function handleModalSave(event) {
+    event.preventDefault();
+    hideModalError();
+    const type = modalTypeInput?.value;
+    const id = editingIdInput?.value;
+    if (!type) return;
+    let data = {};
+    const storeName = (type === 'comissao') ? 'comissoes' : `${type}s`;
+
+    try {
+      if (type === 'cliente') {
+        data = {
+          nome: document.getElementById('cliente-nome')?.value.trim(),
+          cpfCnpj: document.getElementById('cliente-cpfCnpj')?.value.trim(),
+          telefone: document.getElementById('cliente-telefone')?.value.trim(),
+          email: document.getElementById('cliente-email')?.value.trim(),
+          dataNascimento: document.getElementById('cliente-dataNascimento')?.value,
+          contaContrato: (document.getElementById('cliente-contaContrato')?.value || '').trim(),
+          endereco: {
+            cep: (document.getElementById('cliente-cep')?.value || '').trim(),
+            logradouro: (document.getElementById('cliente-logradouro')?.value || '').trim(),
+            numero: (document.getElementById('cliente-numero')?.value || '').trim(),
+            complemento: (document.getElementById('cliente-complemento')?.value || '').trim(),
+            bairro: (document.getElementById('cliente-bairro')?.value || '').trim(),
+            cidade: (document.getElementById('cliente-cidade')?.value || '').trim(),
+            uf: (document.getElementById('cliente-uf')?.value || '').trim(),
+          }
+        };
+        if (!data.nome || !data.cpfCnpj || !data.telefone) { showModalError('Nome, CPF/CNPJ e Telefone são obrigatórios.'); return; }
+      } else if (type === 'venda') {
+        const existing = id ? (vendas || []).find(v => Number(v.id) === Number(id)) : null;
+        data = {
+          clienteId: parseInt(document.getElementById('venda-clienteId')?.value,10),
+          produto: document.getElementById('venda-produto')?.value,
+          operadora: document.getElementById('venda-operadora')?.value,
+          valorVenda: document.getElementById('venda-valorVenda')?.value,
+          tipoCliente: document.getElementById('venda-tipoCliente')?.value,
+          status: document.getElementById('venda-status')?.value,
+          dataConclusao: document.getElementById('venda-dataConclusao')?.value,
+          dataRegistro: existing ? existing.dataRegistro : new Date().toISOString().split('T')[0],
+          posVendaDismissed: existing ? (existing.posVendaDismissed || []) : []
+        };
+        if (!data.clienteId || !data.produto || !data.operadora || !data.valorVenda || !data.tipoCliente) { showModalError('Todos os campos * (exceto Data de Conclusão) são obrigatórios.'); return; }
+        if (data.status === 'Concluído' && !data.dataConclusao) { showModalError('Data de Conclusão é obrigatória para vendas concluídas.'); return; }
+        if (data.status !== 'Concluído') data.dataConclusao = '';
+      } else if (type === 'comissao') {
+        data = {
+          produto: document.getElementById('comissao-produto')?.value.trim(),
+          tipoCliente: document.getElementById('comissao-tipoCliente')?.value,
+          operadora: document.getElementById('comissao-operadora')?.value.trim(),
+          comissao: document.getElementById('comissao-comissao')?.value
+        };
+        if (!data.produto || !data.tipoCliente || !data.operadora || !data.comissao) { showModalError('Todos os campos são obrigatórios.'); return; }
+      } else if (type === 'meta') {
+        data = {
+          mes: document.getElementById('meta-mes')?.value,
+          ano: document.getElementById('meta-ano')?.value,
+          valorMeta: document.getElementById('meta-valorMeta')?.value,
+          comissaoMeta: document.getElementById('meta-comissaoMeta')?.value
+        };
+        if (!data.mes || !data.ano || !data.valorMeta || !data.comissaoMeta) { showModalError('Todos os campos são obrigatórios.'); return; }
+      }
+
+      if (id) {
+        data.id = parseInt(id,10);
+        if (type === 'cliente') {
+          const existing = (clientes || []).find(c => Number(c.id) === Number(data.id));
+          if (existing) {
+            // evita apagar campos já existentes (só atualiza o que vier preenchido)
+            const merged = JSON.parse(JSON.stringify(existing));
+            Object.keys(data).forEach(k => {
+              if (k === 'endereco') return;
+              const v = data[k];
+              if (v !== undefined && v !== null && String(v).trim() !== '') merged[k] = v;
+            });
+            const endOld = merged.endereco || {};
+            const endNew = data.endereco || {};
+            merged.endereco = {
+              cep: (endNew.cep && String(endNew.cep).trim()) ? endNew.cep : (endOld.cep || ''),
+              logradouro: (endNew.logradouro && String(endNew.logradouro).trim()) ? endNew.logradouro : (endOld.logradouro || ''),
+              numero: (endNew.numero && String(endNew.numero).trim()) ? endNew.numero : (endOld.numero || ''),
+              complemento: (endNew.complemento && String(endNew.complemento).trim()) ? endNew.complemento : (endOld.complemento || ''),
+              bairro: (endNew.bairro && String(endNew.bairro).trim()) ? endNew.bairro : (endOld.bairro || ''),
+              cidade: (endNew.cidade && String(endNew.cidade).trim()) ? endNew.cidade : (endOld.cidade || ''),
+              uf: (endNew.uf && String(endNew.uf).trim()) ? endNew.uf : (endOld.uf || ''),
+            };
+            data = merged;
+          }
+        }
+        await updateData(storeName, data);
+      } else {
+        await addData(storeName, data);
+      }
+
+      hideModal();
+      await renderAll();
+    } catch (err) {
+      console.error('Erro ao salvar:', err);
+      showModalError('Erro ao salvar dados. Verifique o console.');
+    }
+  }
+
+  // --- OTHER UTILITIES ---
+  async function requestNotificationPermission() {
+    const btnNotificacoes = document.getElementById('btn-notificacoes');
+    const labelNotificacoes = document.getElementById('label-notificacoes');
+    if (!('Notification' in window)) { alert('Este navegador não suporta notificações de desktop'); return; }
+    if (Notification.permission === 'granted') {
+      new Notification('Notificações já ativadas!', { body: 'Você já está recebendo lembretes.', icon: '🔔' });
+      if (btnNotificacoes) btnNotificacoes.classList.add('bg-green-500/20','text-green-400','border','border-green-500/30');
+      if (labelNotificacoes) labelNotificacoes.textContent = 'Notificações Ativas';
+    } else if (Notification.permission !== 'denied') {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        new Notification('Notificações Ativadas!', { body: 'Você receberá lembretes de pós-venda.', icon: '🔔' });
+        if (btnNotificacoes) btnNotificacoes.classList.add('bg-green-500/20','text-green-400','border','border-green-500/30');
+        if (labelNotificacoes) labelNotificacoes.textContent = 'Notificações Ativas';
+      }
+    }
+  }
+
+  function exportToCSV(type) {
+    let data = [], headers = [], filename = 'export.csv';
+    if (type === 'vendas') {
+      headers = ['Data','Cliente','Produto','Operadora','Tipo Cliente','Valor','Comissão','Status'];
+      data = (vendas || []).map(v => {
+        const cliente = (clientes || []).find(c => c.id === v.clienteId);
+        return [v.dataConclusao || v.dataRegistro, cliente?.nome || 'N/A', v.produto, v.operadora, v.tipoCliente, v.valorVenda, (calcularComissao(v)||0).toFixed(2), v.status];
+      });
+      filename = 'vendas.csv';
+    } else if (type === 'clientes') {
+      headers = ['CPF/CNPJ','Nome','Telefone','Email','Aniversário'];
+      data = (clientes || []).map(c => [c.cpfCnpj||'', c.nome||'', c.telefone||'', c.email||'', c.dataNascimento||'']);
+      filename = 'clientes.csv';
+    }
+
+    const csvContent = [headers.join(','), ...data.map(row => row.map(cell => `"${String(cell||'').replace(/"/g,'""')}"`).join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+  }
+
+  // expose functions for debugging if needed
+  window.__crm_debug = { renderAll, renderDashboard, renderVendasTable, renderClientesGrid };
+  // --- IMPORTAÇÃO DE CLIENTES (Excel/CSV) ---
+  function showImportClientesModal() {
+    if (!importClientesModal) return;
+    if (importClientesError) { importClientesError.classList.add('hidden'); importClientesError.textContent = ''; }
+    importClientesModal.classList.remove('hidden');
+    if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+  }
+
+  function hideImportClientesModal() {
+    if (!importClientesModal) return;
+    importClientesModal.classList.add('hidden');
+    importRowsCache = [];
+    importHeadersCache = [];
+    if (importPreviewBody) importPreviewBody.innerHTML = '';
+    if (importPreviewCount) importPreviewCount.textContent = '0 linhas';
+  }
+
+  function showImportVendasModal() {
+    if (!importVendasModal) return;
+    if (importVendasError) { importVendasError.classList.add('hidden'); importVendasError.textContent = ''; }
+    importVendasModal.classList.remove('hidden');
+    if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+  }
+
+  function hideImportVendasModal() {
+    if (!importVendasModal) return;
+    importVendasModal.classList.add('hidden');
+    importVendasRowsCache = [];
+    importVendasHeadersCache = [];
+    if (importVendasPreviewBody) importVendasPreviewBody.innerHTML = '';
+    if (importVendasPreviewCount) importVendasPreviewCount.textContent = '0 linhas';
+  }
+
+  function normalizeDoc(v) { return String(v || '').replace(/\D+/g, '').trim(); }
+  function normalizePhone(v) { return String(v || '').replace(/\D+/g, '').trim(); }
+
+  function excelDateToISO(value) {
+    if (!value) return '';
+    if (value instanceof Date && !isNaN(value)) {
+      const yyyy = value.getFullYear();
+      const mm = String(value.getMonth()+1).padStart(2,'0');
+      const dd = String(value.getDate()).padStart(2,'0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    if (typeof value === 'number') {
+      const epoch = new Date(Date.UTC(1899, 11, 30));
+      const d = new Date(epoch.getTime() + value * 86400000);
+      if (isNaN(d)) return '';
+      const yyyy = d.getUTCFullYear();
+      const mm = String(d.getUTCMonth()+1).padStart(2,'0');
+      const dd = String(d.getUTCDate()).padStart(2,'0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    const s = String(value).trim();
+    const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    return '';
+  }
+
+  function fillSelectOptions(selectEl, headers, preferred) {
+    if (!selectEl) return;
+    selectEl.innerHTML = '';
+    const optNone = document.createElement('option');
+    optNone.value = '';
+    optNone.textContent = '(não importar)';
+    selectEl.appendChild(optNone);
+    headers.forEach(h => {
+      const opt = document.createElement('option');
+      opt.value = h;
+      opt.textContent = h;
+      selectEl.appendChild(opt);
+    });
+    if (preferred && headers.includes(preferred)) selectEl.value = preferred;
+  }
+
+  function autoMapHeaders(headers) {
+    const pick = (...cands) => cands.find(c => headers.includes(c)) || '';
+    return {
+      cpfCnpj: pick('CPF/CNPJ','CPF','CNPJ'),
+      nome: pick('Razão Social','Nome Contato','Nome'),
+      telefone: pick('Celular','Telefone Comercial','Telefone'),
+      email: pick('Email','E-mail'),
+      cep: pick('CEP'),
+      logradouro: pick('Logradouro','Endereço','Endereco'),
+      numero: pick('Número','Numero'),
+      complemento: pick('Complemento'),
+      bairro: pick('Bairro'),
+      cidade: pick('Cidade'),
+      uf: pick('UF','Estado'),
+      contaContrato: pick('Conta Contrato','Instalação','Instalacao','Conta'),
+      dataNascimento: pick('Data Nascimento','Nascimento'),
+    };
+  }
+
+  function autoMapHeadersVendas(headers) {
+    const pick = (...cands) => cands.find(c => headers.includes(c)) || '';
+    return {
+      data: pick('Data','data'),
+      cliente: pick('Cliente','cliente'),
+      produto: pick('Produto','produto'),
+      operadora: pick('Operadora','operadora'),
+      tipoCliente: pick('Tipo Cliente','tipoCliente','Tipo'),
+      valor: pick('Valor','valor','Preço'),
+      comissao: pick('Comissão','comissao','Comissao'),
+      status: pick('Status','status'),
+    };
+  }
+
+  function getMappedValue(row, key) {
+    const col = importMappings[key] ? importMappings[key].value : '';
+    if (!col) return '';
+    return row[col];
+  }
+
+  function getMappedValueVendas(row, key) {
+    const col = importVendasMappings[key] ? importVendasMappings[key].value : '';
+    if (!col) return '';
+    return row[col];
+  }
+
+  function updateImportPreview() {
+    if (!importPreviewBody) return;
+    importPreviewBody.innerHTML = '';
+    const max = Math.min(8, importRowsCache.length);
+    for (let i=0;i<max;i++) {
+      const row = importRowsCache[i];
+      const doc = normalizeDoc(getMappedValue(row,'cpfCnpj'));
+      const nome = String(getMappedValue(row,'nome') || '').trim();
+      const tel = normalizePhone(getMappedValue(row,'telefone'));
+      const email = String(getMappedValue(row,'email') || '').trim();
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="py-2 pr-3 whitespace-nowrap text-slate-300">${doc || '-'}</td>
+        <td class="py-2 pr-3">${nome || '-'}</td>
+        <td class="py-2 pr-3 whitespace-nowrap">${tel || '-'}</td>
+        <td class="py-2 pr-3">${email || '-'}</td>
+      `;
+      importPreviewBody.appendChild(tr);
+    }
+    if (importPreviewCount) importPreviewCount.textContent = `${importRowsCache.length} linhas`;
+  }
+
+  function updateImportVendasPreview() {
+    if (!importVendasPreviewBody) return;
+    importVendasPreviewBody.innerHTML = '';
+    const max = Math.min(8, importVendasRowsCache.length);
+    for (let i=0;i<max;i++) {
+      const row = importVendasRowsCache[i];
+      const data = String(getMappedValueVendas(row,'data') || '').trim();
+      const cliente = String(getMappedValueVendas(row,'cliente') || '').trim();
+      const produto = String(getMappedValueVendas(row,'produto') || '').trim();
+      const valor = String(getMappedValueVendas(row,'valor') || '').trim();
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="py-2 pr-3 whitespace-nowrap text-slate-300">${data || '-'}</td>
+        <td class="py-2 pr-3">${cliente || '-'}</td>
+        <td class="py-2 pr-3">${produto || '-'}</td>
+        <td class="py-2 pr-3">${valor || '-'}</td>
+      `;
+      importVendasPreviewBody.appendChild(tr);
+    }
+    if (importVendasPreviewCount) importVendasPreviewCount.textContent = `${importVendasRowsCache.length} linhas`;
+  }
+
+  async function handleImportClientesFile(file) {
+    try {
+      if (!window.XLSX) throw new Error('Biblioteca XLSX não carregou. Verifique sua internet (CDN).');
+      const ext = (file.name || '').toLowerCase();
+      let rows = [];
+      if (ext.endsWith('.csv')) {
+        const text = await file.text();
+        const wb = XLSX.read(text, { type: 'string' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      } else {
+        const data = await file.arrayBuffer();
+        const wb = XLSX.read(data, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      }
+      if (!rows || !rows.length) throw new Error('Arquivo sem dados (0 linhas).');
+      importRowsCache = rows;
+      importHeadersCache = Object.keys(rows[0] || {});
+      if (!importHeadersCache.length) throw new Error('Não foi possível ler o cabeçalho da planilha.');
+
+      const defaults = autoMapHeaders(importHeadersCache);
+      Object.keys(importMappings).forEach(key => fillSelectOptions(importMappings[key], importHeadersCache, defaults[key]));
+
+      Object.values(importMappings).forEach(sel => { if (sel) sel.onchange = () => updateImportPreview(); });
+      updateImportPreview();
+      showImportClientesModal();
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao importar: ' + (err.message || err));
+    }
+  }
+
+  async function handleImportVendasFile(file) {
+    try {
+      if (!window.XLSX) throw new Error('Biblioteca XLSX não carregou. Verifique sua internet (CDN).');
+      const ext = (file.name || '').toLowerCase();
+      let rows = [];
+      if (ext.endsWith('.csv')) {
+        const text = await file.text();
+        const wb = XLSX.read(text, { type: 'string' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      } else {
+        const data = await file.arrayBuffer();
+        const wb = XLSX.read(data, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      }
+      if (!rows || !rows.length) throw new Error('Arquivo sem dados (0 linhas).');
+      importVendasRowsCache = rows;
+      importVendasHeadersCache = Object.keys(rows[0] || {});
+      if (!importVendasHeadersCache.length) throw new Error('Não foi possível ler o cabeçalho da planilha.');
+
+      const defaults = autoMapHeadersVendas(importVendasHeadersCache);
+      Object.keys(importVendasMappings).forEach(key => fillSelectOptions(importVendasMappings[key], importVendasHeadersCache, defaults[key]));
+
+      Object.values(importVendasMappings).forEach(sel => { if (sel) sel.onchange = () => updateImportVendasPreview(); });
+      updateImportVendasPreview();
+      showImportVendasModal();
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao importar: ' + (err.message || err));
+    }
+  }
+
+  async function runImportClientes() {
+    try {
+      if (!importRowsCache.length) throw new Error('Nenhuma linha carregada. Selecione um arquivo.');
+      if (!importMappings.cpfCnpj.value) throw new Error('Mapeie a coluna de CPF/CNPJ (obrigatório).');
+
+      const byDoc = new Map();
+      (clientes || []).forEach(c => {
+        const d = normalizeDoc(c.cpfCnpj);
+        if (d) byDoc.set(d, c);
+      });
+
+      let created = 0, updated = 0;
+      for (const row of importRowsCache) {
+        const doc = normalizeDoc(getMappedValue(row,'cpfCnpj'));
+        if (!doc) continue;
+
+        const clientePayload = {
+          cpfCnpj: doc,
+          nome: String(getMappedValue(row,'nome') || doc).trim(),
+          telefone: normalizePhone(getMappedValue(row,'telefone')),
+          email: String(getMappedValue(row,'email') || '').trim(),
+          dataNascimento: excelDateToISO(getMappedValue(row,'dataNascimento')),
+          contaContrato: String(getMappedValue(row,'contaContrato') || '').trim(),
+          endereco: {
+            cep: String(getMappedValue(row,'cep') || '').trim(),
+            logradouro: String(getMappedValue(row,'logradouro') || '').trim(),
+            numero: String(getMappedValue(row,'numero') || '').trim(),
+            complemento: String(getMappedValue(row,'complemento') || '').trim(),
+            bairro: String(getMappedValue(row,'bairro') || '').trim(),
+            cidade: String(getMappedValue(row,'cidade') || '').trim(),
+            uf: String(getMappedValue(row,'uf') || '').trim(),
+          },
+          importedAt: new Date().toISOString()
+        };
+
+        const existing = byDoc.get(doc);
+        if (!existing) {
+          const newId = await addData('clientes', clientePayload);
+          clientePayload.id = newId;
+          clientes.push(clientePayload);
+          byDoc.set(doc, clientePayload);
+          created++;
+        } else {
+          const merged = JSON.parse(JSON.stringify(existing));
+          merged.nome = merged.nome || clientePayload.nome;
+          merged.telefone = merged.telefone || clientePayload.telefone;
+          merged.email = merged.email || clientePayload.email;
+          merged.dataNascimento = merged.dataNascimento || clientePayload.dataNascimento;
+          merged.contaContrato = merged.contaContrato || clientePayload.contaContrato;
+          merged.endereco = merged.endereco || {};
+          const end = merged.endereco;
+          end.cep = end.cep || clientePayload.endereco.cep;
+          end.logradouro = end.logradouro || clientePayload.endereco.logradouro;
+          end.numero = end.numero || clientePayload.endereco.numero;
+          end.complemento = end.complemento || clientePayload.endereco.complemento;
+          end.bairro = end.bairro || clientePayload.endereco.bairro;
+          end.cidade = end.cidade || clientePayload.endereco.cidade;
+          end.uf = end.uf || clientePayload.endereco.uf;
+          merged.importedAt = clientePayload.importedAt;
+
+          await updateData('clientes', merged);
+          const idx = clientes.findIndex(c => Number(c.id) === Number(merged.id));
+          if (idx >= 0) clientes[idx] = merged;
+          byDoc.set(doc, merged);
+          updated++;
+        }
+      }
+
+      await renderAll();
+      hideImportClientesModal();
+      showQuickMessage(`Importação concluída: ${created} novos, ${updated} atualizados.`, 'success');
+    } catch (err) {
+      console.error(err);
+      if (importClientesError) { importClientesError.textContent = err.message || String(err); importClientesError.classList.remove('hidden'); }
+      else alert('Erro: ' + (err.message || err));
+    }
+  }
+
+  async function runImportVendas() {
+    try {
+      if (!importVendasRowsCache.length) throw new Error('Nenhuma linha carregada. Selecione um arquivo.');
+      if (!importVendasMappings.data.value || !importVendasMappings.cliente.value) {
+        throw new Error('Mapeie as colunas obrigatórias: Data e Cliente.');
+      }
+
+      let created = 0;
+      for (const row of importVendasRowsCache) {
+        const data = excelDateToISO(getMappedValueVendas(row, 'data'));
+        const clienteNome = String(getMappedValueVendas(row, 'cliente') || '').trim();
+        
+        if (!data || !clienteNome) {
+          continue;
+        }
+
+        // Procurar cliente existente pelo nome
+        const clienteExistente = (clientes || []).find(c => c.nome?.toLowerCase() === clienteNome.toLowerCase());
+        const clienteId = clienteExistente ? clienteExistente.id : null;
+
+        const vendaPayload = {
+          data: data,
+          clienteId: clienteId,
+          clienteNome: clienteNome,
+          produto: String(getMappedValueVendas(row, 'produto') || '').trim(),
+          operadora: String(getMappedValueVendas(row, 'operadora') || '').trim(),
+          tipoCliente: String(getMappedValueVendas(row, 'tipoCliente') || '').trim(),
+          valorVenda: parseFloat(String(getMappedValueVendas(row, 'valor') || '0').replace(/[^0-9.-]/g, '')) || 0,
+          percentualComissao: 0,
+          status: String(getMappedValueVendas(row, 'status') || 'Negociando').trim(),
+          dataConclusao: '',
+          importedAt: new Date().toISOString()
+        };
+
+        const newId = await addData('vendas', vendaPayload);
+        vendaPayload.id = newId;
+        vendas.push(vendaPayload);
+        created++;
+      }
+
+      await renderAll();
+      hideImportVendasModal();
+      showQuickMessage(`Importação de vendas concluída: ${created} novos registros.`, 'success');
+    } catch (err) {
+      console.error(err);
+      if (importVendasError) { importVendasError.textContent = err.message || String(err); importVendasError.classList.remove('hidden'); }
+      else alert('Erro: ' + (err.message || err));
+    }
+  }
+
+})();
+  </script>
+
+<script>
+// Auto-map CSV headers to existing mapping selects and trigger import
+function autoMapAndImport(file, type){
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const text = e.target.result;
+    const lines = text.split(/\r?\n/);
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,''));
+    const mapClientes = {
+      "CPF/CNPJ":"cpfCnpj","Nome":"nome","Telefone":"telefone","Email":"email","Aniversário":"dataNascimento"
+    };
+    const mapVendas = {
+      "Data":"data","Cliente":"cliente","Produto":"produto","Operadora":"operadora","Tipo Cliente":"tipoCliente",
+      "Valor":"valor","Comissão":"comissao","Status":"status"
+    };
+    const map = type === 'clientes' ? mapClientes : mapVendas;
+    headers.forEach(h=>{
+      const key = map[h];
+      if(key){
+        const sel = document.querySelector(`select[data-field="${key}"]`);
+        if(sel){
+          for(let i=0;i<sel.options.length;i++){
+            if(sel.options[i].value === h){
+              sel.selectedIndex = i;
+              break;
+            }
+          }
+        }
+      }
+    });
+    const btn = document.querySelector('button#importarAgora') || document.querySelector('button[data-action="import"]');
+    if(btn) btn.click();
+  };
+  reader.readAsText(file);
+}
+
+// Hook file inputs
+document.addEventListener('change', function(e){
+  const input = e.target;
+  if(input.type === 'file'){
+    if(input.closest('#abaClientes')) autoMapAndImport(input.files[0],'clientes');
+    if(input.closest('#abaVendas')) autoMapAndImport(input.files[0],'vendas');
+  }
+});
+
+// Script para detectar atualizações e forçar reload
+(function() {
+  const VERSION_KEY = 'app-version';
+  const currentVersion = new Date().toISOString().split('T')[0]; // Versão diária
+  const lastVersion = localStorage.getItem(VERSION_KEY);
+  
+  if (lastVersion && lastVersion !== currentVersion) {
+    // Versão foi atualizada, limpar cache e fazer reload
+    localStorage.setItem(VERSION_KEY, currentVersion);
+    sessionStorage.clear();
+    location.reload(true); // True força reload do servidor
+  } else if (!lastVersion) {
+    localStorage.setItem(VERSION_KEY, currentVersion);
+  }
+
+  // Verificar a cada 5 minutos se há atualização
+  setInterval(() => {
+    fetch('/?_bust=' + Date.now(), { cache: 'no-store' })
+      .then(r => r.text())
+      .then(html => {
+        const newVersion = new Date().toISOString().split('T')[0];
+        if (localStorage.getItem(VERSION_KEY) !== newVersion) {
+          localStorage.setItem(VERSION_KEY, newVersion);
+          console.log('Nova versão detectada, recarregando...');
+          location.reload(true);
+        }
+      })
+      .catch(err => console.log('Verificação de atualização:', err));
+  }, 5 * 60 * 1000); // A cada 5 minutos
+})();
+</script>
+
+</body>
+</html>
+
