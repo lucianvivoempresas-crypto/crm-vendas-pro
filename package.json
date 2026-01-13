@@ -1,0 +1,18 @@
+{
+  "name": "crm-vendas-pro",
+  "version": "2.0.0",
+  "description": "CRM Sistema de Gestão de Vendas Online",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "node backend/server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "sqlite3": "^5.1.6",
+    "xlsx": "^0.18.5"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: crm-vendas-pro
+    env: node
+    region: ohio
+    plan: free
+    
+    buildCommand: npm install
+    startCommand: node backend/server.js
+    
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
