@@ -31,14 +31,35 @@ app.use(express.static(path.join(__dirname, '../frontend'), {
 // Banco SQLite
 const db = new sqlite3.Database(DATABASE_PATH);
 db.serialize(() => {
-  // Tabela de usuários
+  // Tabela de usuários com role (admin/user)
   db.run(`CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE NOT NULL,
+    email TEXT UNIQUE,
+    cpf TEXT UNIQUE,
     senha TEXT NOT NULL,
     nome TEXT NOT NULL,
+    role TEXT DEFAULT 'user',
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+  
+  // Criar usuário admin se não existir
+  db.get('SELECT * FROM usuarios WHERE role = ?', ['admin'], (err, row) => {
+    if (!row) {
+      const adminEmail = 'admin@crm.local';
+      const adminCpf = '02850697567';
+      const adminSenha = 'JL10@dez';
+      
+      hashPassword(adminSenha).then(senhaHash => {
+        db.run(
+          'INSERT INTO usuarios (email, cpf, senha, nome, role) VALUES (?, ?, ?, ?, ?)',
+          [adminEmail, adminCpf, senhaHash, 'Administrador', 'admin'],
+          (err) => {
+            if (!err) console.log('✓ Usuário admin criado automaticamente');
+          }
+        );
+      });
+    }
+  });
   
   db.run(`CREATE TABLE IF NOT EXISTS clientes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -99,35 +120,41 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// LOGIN - Autenticar usuário
+// LOGIN - Autenticar usuário (email ou CPF)
 app.post('/api/auth/login', (req, res) => {
   try {
     const { email, senha } = req.body;
 
     if (!email || !senha) {
-      return res.status(400).json({ error: 'Email e senha são obrigatórios' });
+      return res.status(400).json({ error: 'Email/CPF e senha são obrigatórios' });
     }
 
-    db.get('SELECT * FROM usuarios WHERE email = ?', [email], async (err, usuario) => {
-      if (err) return res.status(500).json({ error: 'Erro no servidor' });
+    // Buscar por email OU cpf
+    db.get(
+      'SELECT * FROM usuarios WHERE email = ? OR cpf = ?',
+      [email, email],
+      async (err, usuario) => {
+        if (err) return res.status(500).json({ error: 'Erro no servidor' });
 
-      if (!usuario) {
-        return res.status(401).json({ error: 'Email ou senha inválidos' });
+        if (!usuario) {
+          return res.status(401).json({ error: 'Email/CPF ou senha inválidos' });
+        }
+
+        const valida = await verifyPassword(senha, usuario.senha);
+        if (!valida) {
+          return res.status(401).json({ error: 'Email/CPF ou senha inválidos' });
+        }
+
+        const token = generateToken(usuario.id, usuario.email);
+        res.json({
+          id: usuario.id,
+          email: usuario.email,
+          nome: usuario.nome,
+          role: usuario.role,
+          token
+        });
       }
-
-      const valida = await verifyPassword(senha, usuario.senha);
-      if (!valida) {
-        return res.status(401).json({ error: 'Email ou senha inválidos' });
-      }
-
-      const token = generateToken(usuario.id, usuario.email);
-      res.json({
-        id: usuario.id,
-        email: usuario.email,
-        nome: usuario.nome,
-        token
-      });
-    });
+    );
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erro no servidor' });
@@ -136,12 +163,56 @@ app.post('/api/auth/login', (req, res) => {
 
 // VERIFICAR TOKEN - Validar autenticação
 app.get('/api/auth/me', authMiddleware, (req, res) => {
-  db.get('SELECT id, email, nome FROM usuarios WHERE id = ?', [req.user.userId], (err, usuario) => {
+  db.get('SELECT id, email, nome, role FROM usuarios WHERE id = ?', [req.user.userId], (err, usuario) => {
     if (err || !usuario) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
     res.json(usuario);
   });
+});
+
+// CRIAR NOVO USUÁRIO (apenas admin)
+app.post('/api/auth/create-user', authMiddleware, async (req, res) => {
+  try {
+    // Verificar se é admin
+    db.get('SELECT role FROM usuarios WHERE id = ?', [req.user.userId], async (err, admin) => {
+      if (err || !admin || admin.role !== 'admin') {
+        return res.status(403).json({ error: 'Apenas administrador pode criar usuários' });
+      }
+
+      const { email, cpf, senha, nome } = req.body;
+
+      if (!email || !cpf || !senha || !nome) {
+        return res.status(400).json({ error: 'Email, CPF, senha e nome são obrigatórios' });
+      }
+
+      const senhaHash = await hashPassword(senha);
+
+      db.run(
+        'INSERT INTO usuarios (email, cpf, senha, nome, role) VALUES (?, ?, ?, ?, ?)',
+        [email, cpf, senhaHash, nome, 'user'],
+        function(err) {
+          if (err) {
+            if (err.message.includes('UNIQUE constraint failed')) {
+              return res.status(409).json({ error: 'Email ou CPF já cadastrado' });
+            }
+            return res.status(500).json({ error: 'Erro ao criar usuário' });
+          }
+
+          res.status(201).json({
+            id: this.lastID,
+            email,
+            cpf,
+            nome,
+            role: 'user'
+          });
+        }
+      );
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro no servidor' });
+  }
 });
 
 // ============ ROTAS DE API (com autenticação) ============
@@ -172,9 +243,20 @@ app.post('/api/clientes', authMiddleware, (req, res) => {
 });
 
 app.get('/api/vendas', authMiddleware, (req, res) => {
-  db.all('SELECT * FROM vendas WHERE usuario_id = ?', [req.user.userId], (err, rows) => {
+  // Middleware que busca role do usuário
+  db.get('SELECT role FROM usuarios WHERE id = ?', [req.user.userId], (err, user) => {
     if (err) return res.status(500).json(err);
-    res.json(rows);
+
+    // Admin vê TODAS as vendas, user vê apenas suas
+    const query = user.role === 'admin' 
+      ? 'SELECT * FROM vendas' 
+      : 'SELECT * FROM vendas WHERE usuario_id = ?';
+    const params = user.role === 'admin' ? [] : [req.user.userId];
+
+    db.all(query, params, (err, rows) => {
+      if (err) return res.status(500).json(err);
+      res.json(rows);
+    });
   });
 });
 

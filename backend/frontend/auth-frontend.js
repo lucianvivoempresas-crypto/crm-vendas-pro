@@ -1,14 +1,14 @@
 // auth-frontend.js - Funções de autenticação para o frontend
 
 /**
- * Fazer login
+ * Fazer login com email/CPF
  */
-async function login(email, senha) {
+async function login(emailOrCpf, senha) {
   try {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, senha })
+      body: JSON.stringify({ email: emailOrCpf, senha })
     });
 
     if (!res.ok) {
@@ -18,11 +18,12 @@ async function login(email, senha) {
 
     const data = await res.json();
     
-    // Salvar token no localStorage
+    // Salvar token e dados do usuário no localStorage
     localStorage.setItem('auth_token', data.token);
     localStorage.setItem('user_id', data.id);
     localStorage.setItem('user_email', data.email);
     localStorage.setItem('user_nome', data.nome);
+    localStorage.setItem('user_role', data.role);
 
     return data;
   } catch (err) {
@@ -94,8 +95,16 @@ function getCurrentUser() {
   return {
     id: localStorage.getItem('user_id'),
     email: localStorage.getItem('user_email'),
-    nome: localStorage.getItem('user_nome')
+    nome: localStorage.getItem('user_nome'),
+    role: localStorage.getItem('user_role') || 'user'
   };
+}
+
+/**
+ * Verificar se usuário é admin
+ */
+function isAdmin() {
+  return getCurrentUser().role === 'admin';
 }
 
 /**
