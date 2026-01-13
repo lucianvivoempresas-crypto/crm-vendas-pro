@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - CRM Vendas Pro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    body {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="w-full max-w-md px-4">
+    <div class="bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl p-8">
+      <!-- Header -->
+      <div class="text-center mb-8">
+        <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+          <i data-lucide="lock" class="w-8 h-8 text-white"></i>
+        </div>
+        <h1 class="text-3xl font-bold text-white">CRM Vendas Pro</h1>
+        <p class="text-slate-400 mt-2">Seu sistema de vendas</p>
+      </div>
+
+      <!-- Tabs -->
+      <div class="flex gap-2 mb-6 bg-slate-800/50 p-1 rounded-lg">
+        <button id="tab-login" class="flex-1 px-4 py-2 rounded-md font-medium text-white bg-blue-500/80 transition-all">
+          Entrar
+        </button>
+        <button id="tab-register" class="flex-1 px-4 py-2 rounded-md font-medium text-slate-400 hover:text-white transition-all">
+          Registrar
+        </button>
+      </div>
+
+      <!-- Login Form -->
+      <div id="login-form" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-300 mb-2">Email</label>
+          <input 
+            id="login-email" 
+            type="email" 
+            placeholder="seu@email.com"
+            class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+          >
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-300 mb-2">Senha</label>
+          <input 
+            id="login-senha" 
+            type="password" 
+            placeholder="••••••••"
+            class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+          >
+        </div>
+
+        <button 
+          id="btn-login"
+          class="w-full px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg font-bold hover:shadow-lg hover:shadow-blue-500/50 transition-all"
+        >
+          Entrar
+        </button>
+
+        <div id="login-error" class="hidden bg-red-500/20 border border-red-500/50 rounded-lg p-3 text-red-400 text-sm"></div>
+      </div>
+
+      <!-- Register Form -->
+      <div id="register-form" class="space-y-4 hidden">
+        <div>
+          <label class="block text-sm font-medium text-slate-300 mb-2">Nome Completo</label>
+          <input 
+            id="register-nome" 
+            type="text" 
+            placeholder="João Silva"
+            class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+          >
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-300 mb-2">Email</label>
+          <input 
+            id="register-email" 
+            type="email" 
+            placeholder="seu@email.com"
+            class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+          >
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-300 mb-2">Senha</label>
+          <input 
+            id="register-senha" 
+            type="password" 
+            placeholder="••••••••"
+            class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+          >
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-300 mb-2">Confirmar Senha</label>
+          <input 
+            id="register-senha-confirm" 
+            type="password" 
+            placeholder="••••••••"
+            class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+          >
+        </div>
+
+        <button 
+          id="btn-register"
+          class="w-full px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg font-bold hover:shadow-lg hover:shadow-blue-500/50 transition-all"
+        >
+          Registrar
+        </button>
+
+        <div id="register-error" class="hidden bg-red-500/20 border border-red-500/50 rounded-lg p-3 text-red-400 text-sm"></div>
+      </div>
+
+      <!-- Footer -->
+      <div class="text-center text-slate-400 text-sm mt-6">
+        <p>CRM Vendas Pro © 2026</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="auth-frontend.js"></script>
+  <script>
+    // Tab switching
+    document.getElementById('tab-login').addEventListener('click', () => {
+      document.getElementById('login-form').classList.remove('hidden');
+      document.getElementById('register-form').classList.add('hidden');
+      document.getElementById('tab-login').classList.add('bg-blue-500/80');
+      document.getElementById('tab-login').classList.remove('text-slate-400');
+      document.getElementById('tab-register').classList.remove('bg-blue-500/80');
+      document.getElementById('tab-register').classList.add('text-slate-400');
+    });
+
+    document.getElementById('tab-register').addEventListener('click', () => {
+      document.getElementById('login-form').classList.add('hidden');
+      document.getElementById('register-form').classList.remove('hidden');
+      document.getElementById('tab-login').classList.remove('bg-blue-500/80');
+      document.getElementById('tab-login').classList.add('text-slate-400');
+      document.getElementById('tab-register').classList.add('bg-blue-500/80');
+      document.getElementById('tab-register').classList.remove('text-slate-400');
+    });
+
+    // Login
+    document.getElementById('btn-login').addEventListener('click', async () => {
+      const email = document.getElementById('login-email').value;
+      const senha = document.getElementById('login-senha').value;
+      const errorEl = document.getElementById('login-error');
+
+      try {
+        errorEl.classList.add('hidden');
+        await login(email, senha);
+        window.location.href = '/';
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.remove('hidden');
+      }
+    });
+
+    // Register
+    document.getElementById('btn-register').addEventListener('click', async () => {
+      const nome = document.getElementById('register-nome').value;
+      const email = document.getElementById('register-email').value;
+      const senha = document.getElementById('register-senha').value;
+      const senhaConfirm = document.getElementById('register-senha-confirm').value;
+      const errorEl = document.getElementById('register-error');
+
+      try {
+        errorEl.classList.add('hidden');
+
+        if (!nome || !email || !senha) {
+          throw new Error('Preencha todos os campos');
+        }
+
+        if (senha !== senhaConfirm) {
+          throw new Error('Senhas não conferem');
+        }
+
+        if (senha.length < 6) {
+          throw new Error('Senha deve ter pelo menos 6 caracteres');
+        }
+
+        await register(email, senha, nome);
+        window.location.href = '/';
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.remove('hidden');
+      }
+    });
+
+    // Redirecionar se já autenticado
+    if (isAuthenticated()) {
+      window.location.href = '/';
+    }
+
+    lucide.createIcons();
+  </script>
+</body>
+</html>

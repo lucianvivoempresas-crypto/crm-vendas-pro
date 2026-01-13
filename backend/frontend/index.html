@@ -10,6 +10,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="auth-frontend.js"></script>
 
   <!-- CORREÇÃO: Carrega a biblioteca 'lucide' (JavaScript) em vez de 'lucide-react' -->
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
@@ -70,6 +71,10 @@
         </div>
         <!-- Botões de Ação -->
         <div class="flex items-center gap-2">
+          <div id="user-info" class="hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-700/50 text-slate-300">
+            <i data-lucide="user" class="w-4 h-4"></i>
+            <span id="user-name-display" class="text-sm font-medium">Usuário</span>
+          </div>
           <button
             id="btn-notificacoes"
             class="px-3 py-2 rounded-lg flex items-center gap-2 transition-all bg-slate-700 text-slate-300 hover:bg-slate-600"
@@ -83,6 +88,13 @@
           >
             <i data-lucide="file-plus" class="w-4 h-4"></i>
             <span class="hidden sm:inline">Abrir Forms</span>
+          </button>
+          <button
+            id="btn-logout"
+            class="px-3 py-2 rounded-lg flex items-center gap-2 transition-all bg-red-500/20 text-red-400 hover:bg-red-500/30"
+          >
+            <i data-lucide="log-out" class="w-4 h-4"></i>
+            <span class="hidden sm:inline">Sair</span>
           </button>
         </div>
       </div>
@@ -1059,6 +1071,22 @@
   <script>
 /* SCRIPT PRINCIPAL - SUBSTITUIR O BLOCO ORIGINAL */
 (() => {
+  // --- AUTENTICAÇÃO INICIAL ---
+  requireAuth(); // Redirecionar para login se não autenticado
+  
+  // Exibir informações do usuário
+  const user = getCurrentUser();
+  if (user.nome) {
+    const el = document.getElementById('user-name-display');
+    if (el) el.textContent = user.nome;
+  }
+
+  // Logout handler
+  const btnLogout = document.getElementById('btn-logout');
+  if (btnLogout) {
+    btnLogout.addEventListener('click', logout);
+  }
+
   // --- CONFIGURAÇÃO INICIAL ---
   const DB_NAME = 'CRM_VENDAS_DB';
   const DB_VERSION = 1;
