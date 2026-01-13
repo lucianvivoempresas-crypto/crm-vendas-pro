@@ -53,11 +53,15 @@ async function register(email, senha, nome) {
 
     const data = await res.json();
 
-    // Salvar token no localStorage
+    // Salvar token no localStorage E em cookie
     localStorage.setItem('auth_token', data.token);
     localStorage.setItem('user_id', data.id);
     localStorage.setItem('user_email', data.email);
     localStorage.setItem('user_nome', data.nome);
+    localStorage.setItem('user_role', data.role || 'user');
+
+    // Salvar em cookie para o servidor ler
+    document.cookie = `auth_token=${data.token}; path=/; max-age=604800; SameSite=Lax`;
 
     return data;
   } catch (err) {

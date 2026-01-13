@@ -14,6 +14,7 @@
 
   <!-- CORREÇÃO: Carrega a biblioteca 'lucide' (JavaScript) em vez de 'lucide-react' -->
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="sync-frontend.js"></script>
   <!-- Tailwind Dark Mode e Configuração de Fonte -->
   <style>
     :root {
@@ -1193,6 +1194,7 @@
     try {
       if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
       await initDB();
+      await syncDataFromServer(); // Sincronizar dados do servidor
       await renderAll();
       setupEventListeners();
     } catch (err) {
@@ -2690,6 +2692,8 @@
       });
 
       let created = 0, updated = 0;
+      const clientesParaSalvar = [];
+      
       for (const row of importRowsCache) {
         const doc = normalizeDoc(getMappedValue(row,'cpfCnpj'));
         if (!doc) continue;
@@ -2719,6 +2723,11 @@
           clientePayload.id = newId;
           clientes.push(clientePayload);
           byDoc.set(doc, clientePayload);
+          clientesParaSalvar.push({
+            nome: clientePayload.nome,
+            telefone: clientePayload.telefone,
+            email: clientePayload.email
+          });
           created++;
         } else {
           const merged = JSON.parse(JSON.stringify(existing));
@@ -2746,6 +2755,16 @@
         }
       }
 
+      // Enviar para o servidor
+      if (clientesParaSalvar.length > 0 && isAuthenticated()) {
+        try {
+          await bulkImportClientesToServer(clientesParaSalvar);
+        } catch (err) {
+          console.error('Erro ao sincronizar com servidor:', err);
+          showQuickMessage('Dados salvos localmente, mas houve erro ao sincronizar com servidor', 'warning');
+        }
+      }
+
       await renderAll();
       hideImportClientesModal();
       showQuickMessage(`Importação concluída: ${created} novos, ${updated} atualizados.`, 'success');
@@ -2764,6 +2783,8 @@
       }
 
       let created = 0;
+      const vendasParaSalvar = [];
+      
       for (const row of importVendasRowsCache) {
         const data = excelDateToISO(getMappedValueVendas(row, 'data'));
         const clienteNome = String(getMappedValueVendas(row, 'cliente') || '').trim();
@@ -2783,8 +2804,8 @@
           produto: String(getMappedValueVendas(row, 'produto') || '').trim(),
           operadora: String(getMappedValueVendas(row, 'operadora') || '').trim(),
           tipoCliente: String(getMappedValueVendas(row, 'tipoCliente') || '').trim(),
-          valorVenda: parseFloat(String(getMappedValueVendas(row, 'valor') || '0').replace(/[^0-9.-]/g, '')) || 0,
-          percentualComissao: 0,
+          valor: parseFloat(String(getMappedValueVendas(row, 'valor') || '0').replace(/[^0-9.-]/g, '')) || 0,
+          comissao: 0,
           status: String(getMappedValueVendas(row, 'status') || 'Negociando').trim(),
           dataConclusao: '',
           importedAt: new Date().toISOString()
@@ -2793,7 +2814,23 @@
         const newId = await addData('vendas', vendaPayload);
         vendaPayload.id = newId;
         vendas.push(vendaPayload);
+        vendasParaSalvar.push({
+          produto: vendaPayload.produto,
+          valor: vendaPayload.valor,
+          comissao: vendaPayload.comissao,
+          data: vendaPayload.data
+        });
         created++;
+      }
+
+      // Enviar para o servidor
+      if (vendasParaSalvar.length > 0 && isAuthenticated()) {
+        try {
+          await bulkImportVendasToServer(vendasParaSalvar);
+        } catch (err) {
+          console.error('Erro ao sincronizar com servidor:', err);
+          showQuickMessage('Dados salvos localmente, mas houve erro ao sincronizar com servidor', 'warning');
+        }
       }
 
       await renderAll();

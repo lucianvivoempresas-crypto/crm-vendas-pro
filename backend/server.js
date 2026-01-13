@@ -284,14 +284,124 @@ app.get('/api/vendas', authMiddleware, (req, res) => {
 });
 
 app.post('/api/vendas', authMiddleware, (req, res) => {
-  const { produto, valor, comissao } = req.body;
-  const data = new Date().toISOString();
+  const { produto, valor, comissao, data } = req.body;
+  const dataVenda = data || new Date().toISOString();
   db.run('INSERT INTO vendas (usuario_id, produto, valor, comissao, data) VALUES (?,?,?,?,?)', 
-    [req.user.userId, produto, valor, comissao, data], 
+    [req.user.userId, produto, valor, comissao, dataVenda], 
     function(err) {
       if (err) return res.status(500).json(err);
-    res.json({ id: this.lastID });
-  });
+      res.json({ id: this.lastID, usuario_id: req.user.userId, produto, valor, comissao, data: dataVenda });
+    });
+});
+
+// PUT /api/vendas/:id - Atualizar venda
+app.put('/api/vendas/:id', authMiddleware, (req, res) => {
+  const { produto, valor, comissao, data } = req.body;
+  db.run('UPDATE vendas SET produto=?, valor=?, comissao=?, data=? WHERE id=? AND usuario_id=?', 
+    [produto, valor, comissao, data, req.params.id, req.user.userId], 
+    function(err) {
+      if (err) return res.status(500).json(err);
+      res.json({ id: req.params.id, produto, valor, comissao, data });
+    });
+});
+
+// DELETE /api/vendas/:id - Deletar venda
+app.delete('/api/vendas/:id', authMiddleware, (req, res) => {
+  db.run('DELETE FROM vendas WHERE id=? AND usuario_id=?', 
+    [req.params.id, req.user.userId], 
+    function(err) {
+      if (err) return res.status(500).json(err);
+      res.json({ success: true });
+    });
+});
+
+// PUT /api/clientes/:id - Atualizar cliente
+app.put('/api/clientes/:id', authMiddleware, (req, res) => {
+  const { nome, telefone, email } = req.body;
+  db.run('UPDATE clientes SET nome=?, telefone=?, email=? WHERE id=? AND usuario_id=?', 
+    [nome, telefone, email, req.params.id, req.user.userId], 
+    function(err) {
+      if (err) return res.status(500).json(err);
+      res.json({ id: req.params.id, nome, telefone, email });
+    });
+});
+
+// DELETE /api/clientes/:id - Deletar cliente
+app.delete('/api/clientes/:id', authMiddleware, (req, res) => {
+  db.run('DELETE FROM clientes WHERE id=? AND usuario_id=?', 
+    [req.params.id, req.user.userId], 
+    function(err) {
+      if (err) return res.status(500).json(err);
+      res.json({ success: true });
+    });
+});
+
+// POST /api/bulk/clientes - Importar múltiplos clientes
+app.post('/api/bulk/clientes', authMiddleware, (req, res) => {
+  const { clientes: clientesArray } = req.body;
+  if (!Array.isArray(clientesArray)) {
+    return res.status(400).json({ error: 'Envie um array de clientes' });
+  }
+  
+  let inserted = 0;
+  let skipped = 0;
+  
+  const insertOne = (index) => {
+    if (index >= clientesArray.length) {
+      return res.json({ inserted, skipped, total: clientesArray.length });
+    }
+    
+    const cliente = clientesArray[index];
+    db.run(
+      'INSERT OR REPLACE INTO clientes (usuario_id, nome, telefone, email) VALUES (?,?,?,?)', 
+      [req.user.userId, cliente.nome, cliente.telefone, cliente.email], 
+      function(err) {
+        if (err) {
+          console.error('Erro ao inserir cliente:', err);
+          skipped++;
+        } else {
+          inserted++;
+        }
+        insertOne(index + 1);
+      }
+    );
+  };
+  
+  insertOne(0);
+});
+
+// POST /api/bulk/vendas - Importar múltiplas vendas
+app.post('/api/bulk/vendas', authMiddleware, (req, res) => {
+  const { vendas: vendasArray } = req.body;
+  if (!Array.isArray(vendasArray)) {
+    return res.status(400).json({ error: 'Envie um array de vendas' });
+  }
+  
+  let inserted = 0;
+  let skipped = 0;
+  
+  const insertOne = (index) => {
+    if (index >= vendasArray.length) {
+      return res.json({ inserted, skipped, total: vendasArray.length });
+    }
+    
+    const venda = vendasArray[index];
+    db.run(
+      'INSERT INTO vendas (usuario_id, produto, valor, comissao, data) VALUES (?,?,?,?,?)', 
+      [req.user.userId, venda.produto, venda.valor, venda.comissao, venda.data], 
+      function(err) {
+        if (err) {
+          console.error('Erro ao inserir venda:', err);
+          skipped++;
+        } else {
+          inserted++;
+        }
+        insertOne(index + 1);
+      }
+    );
+  };
+  
+  insertOne(0);
 });
 
 app.get('/health', (req, res) => res.json({ status: 'OK' }));
