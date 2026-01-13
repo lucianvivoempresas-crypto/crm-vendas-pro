@@ -18,12 +18,15 @@ async function login(emailOrCpf, senha) {
 
     const data = await res.json();
     
-    // Salvar token e dados do usuário no localStorage
+    // Salvar token no localStorage E em cookie
     localStorage.setItem('auth_token', data.token);
     localStorage.setItem('user_id', data.id);
     localStorage.setItem('user_email', data.email);
     localStorage.setItem('user_nome', data.nome);
     localStorage.setItem('user_role', data.role);
+
+    // Salvar em cookie para o servidor ler
+    document.cookie = `auth_token=${data.token}; path=/; max-age=604800; SameSite=Lax`;
 
     return data;
   } catch (err) {
@@ -71,6 +74,11 @@ function logout() {
   localStorage.removeItem('user_id');
   localStorage.removeItem('user_email');
   localStorage.removeItem('user_nome');
+  localStorage.removeItem('user_role');
+  
+  // Remover cookie
+  document.cookie = 'auth_token=; path=/; max-age=0;';
+  
   window.location.href = '/login.html';
 }
 

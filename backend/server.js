@@ -7,6 +7,18 @@ const { hashPassword, verifyPassword, generateToken, authMiddleware } = require(
 const app = express();
 app.use(express.json());
 
+// Parser de cookies (simples, sem biblioteca)
+app.use((req, res, next) => {
+  req.cookies = {};
+  if (req.headers.cookie) {
+    req.headers.cookie.split(';').forEach(cookie => {
+      const [name, value] = cookie.trim().split('=');
+      req.cookies[name] = value;
+    });
+  }
+  next();
+});
+
 // Configurações
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || 'localhost';
@@ -223,11 +235,11 @@ app.get('/', (req, res) => {
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
   
-  // Verificar se tem token no header (cliente já fez login)
-  const token = req.headers.authorization?.split(' ')[1];
+  // Verificar se tem token no cookie
+  const token = req.cookies?.auth_token || req.headers.authorization?.split(' ')[1];
   
   if (!token) {
-    // Sem token = redirecionar para login
+    // Sem token = servir login.html
     return res.sendFile(path.join(__dirname, '../frontend/login.html'));
   }
   
