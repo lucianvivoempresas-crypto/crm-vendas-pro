@@ -217,10 +217,21 @@ app.post('/api/auth/create-user', authMiddleware, async (req, res) => {
 
 // ============ ROTAS DE API (com autenticação) ============
 
+// Rota raiz - redirecionar para login ou CRM conforme autenticação
 app.get('/', (req, res) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
+  
+  // Verificar se tem token no header (cliente já fez login)
+  const token = req.headers.authorization?.split(' ')[1];
+  
+  if (!token) {
+    // Sem token = redirecionar para login
+    return res.sendFile(path.join(__dirname, '../frontend/login.html'));
+  }
+  
+  // Com token = servir CRM
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 

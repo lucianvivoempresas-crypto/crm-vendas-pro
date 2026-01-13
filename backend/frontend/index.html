@@ -1072,7 +1072,11 @@
 /* SCRIPT PRINCIPAL - SUBSTITUIR O BLOCO ORIGINAL */
 (() => {
   // --- AUTENTICAÇÃO INICIAL ---
-  requireAuth(); // Redirecionar para login se não autenticado
+  // Se não tem token, redireciona para login
+  if (!isAuthenticated()) {
+    window.location.href = '/login.html';
+    return; // Para execução
+  }
   
   // Exibir informações do usuário
   const user = getCurrentUser();
