@@ -231,19 +231,27 @@ app.post('/api/auth/create-user', authMiddleware, async (req, res) => {
 
 // Rota raiz - redirecionar para login ou CRM conforme autenticação
 app.get('/', (req, res) => {
-  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+  // Desabilitar cache ANTES de servir qualquer coisa
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, private');
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
+  res.set('Surrogate-Control', 'no-store');
   
   // Verificar se tem token no cookie
-  const token = req.cookies?.auth_token || req.headers.authorization?.split(' ')[1];
+  const cookieToken = req.cookies?.auth_token;
+  const headerToken = req.headers.authorization?.split(' ')[1];
+  const token = cookieToken || headerToken;
+  
+  console.log(`[AUTH] GET / - Cookie: ${cookieToken ? 'SIM' : 'NÃO'}, Header: ${headerToken ? 'SIM' : 'NÃO'}, Token válido: ${token ? 'SIM' : 'NÃO'}`);
   
   if (!token) {
     // Sem token = servir login.html
+    console.log('[AUTH] Sem token, servindo login.html');
     return res.sendFile(path.join(__dirname, '../frontend/login.html'));
   }
   
   // Com token = servir CRM
+  console.log('[AUTH] Com token, servindo index.html');
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 

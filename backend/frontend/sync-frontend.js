@@ -15,7 +15,8 @@ async function syncDataFromServer() {
     // Buscar clientes do servidor
     try {
       const clientesRes = await fetch('/api/clientes', {
-        headers: getAuthHeaders()
+        headers: getAuthHeaders(),
+        credentials: 'include'
       });
       
       if (clientesRes.ok) {
@@ -44,7 +45,8 @@ async function syncDataFromServer() {
     // Buscar vendas do servidor
     try {
       const vendasRes = await fetch('/api/vendas', {
-        headers: getAuthHeaders()
+        headers: getAuthHeaders(),
+        credentials: 'include'
       });
       
       if (vendasRes.ok) {
@@ -92,7 +94,8 @@ async function saveClienteToServer(cliente) {
         nome: cliente.nome,
         telefone: cliente.telefone,
         email: cliente.email
-      })
+      }),
+      credentials: 'include'
     });
     
     if (!res.ok) {
@@ -127,7 +130,8 @@ async function updateClienteToServer(cliente) {
         nome: cliente.nome,
         telefone: cliente.telefone,
         email: cliente.email
-      })
+      }),
+      credentials: 'include'
     });
     
     if (!res.ok) {
@@ -152,7 +156,8 @@ async function deleteClienteFromServer(clienteId) {
     
     const res = await fetch(`/api/clientes/${clienteId}`, {
       method: 'DELETE',
-      headers: getAuthHeaders()
+      headers: getAuthHeaders(),
+      credentials: 'include'
     });
     
     if (!res.ok) {
@@ -186,7 +191,8 @@ async function saveVendaToServer(venda) {
         valor: venda.valor,
         comissao: venda.comissao,
         data: venda.data
-      })
+      }),
+      credentials: 'include'
     });
     
     if (!res.ok) {
@@ -221,7 +227,8 @@ async function updateVendaToServer(venda) {
         valor: venda.valor,
         comissao: venda.comissao,
         data: venda.data
-      })
+      }),
+      credentials: 'include'
     });
     
     if (!res.ok) {
@@ -246,7 +253,8 @@ async function deleteVendaFromServer(vendaId) {
     
     const res = await fetch(`/api/vendas/${vendaId}`, {
       method: 'DELETE',
-      headers: getAuthHeaders()
+      headers: getAuthHeaders(),
+      credentials: 'include'
     });
     
     if (!res.ok) {
@@ -281,7 +289,8 @@ async function bulkImportClientesToServer(clientesArray) {
         'Content-Type': 'application/json',
         ...getAuthHeaders()
       },
-      body: JSON.stringify({ clientes: clientesArray })
+      body: JSON.stringify({ clientes: clientesArray }),
+      credentials: 'include'
     });
     
     if (!res.ok) {
@@ -317,7 +326,8 @@ async function bulkImportVendasToServer(vendasArray) {
         'Content-Type': 'application/json',
         ...getAuthHeaders()
       },
-      body: JSON.stringify({ vendas: vendasArray })
+      body: JSON.stringify({ vendas: vendasArray }),
+      credentials: 'include'
     });
     
     if (!res.ok) {

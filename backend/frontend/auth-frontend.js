@@ -8,7 +8,8 @@ async function login(emailOrCpf, senha) {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: emailOrCpf, senha })
+      body: JSON.stringify({ email: emailOrCpf, senha }),
+      credentials: 'include' // IMPORTANTE: enviar cookies
     });
 
     if (!res.ok) {
@@ -43,7 +44,8 @@ async function register(email, senha, nome) {
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, senha, nome })
+      body: JSON.stringify({ email, senha, nome }),
+      credentials: 'include' // IMPORTANTE: enviar cookies
     });
 
     if (!res.ok) {
