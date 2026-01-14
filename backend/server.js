@@ -1,7 +1,7 @@
 
 const express = require('express');
 const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
+const { pool, initDatabase } = require('./db');
 const { hashPassword, verifyPassword, generateToken, authMiddleware } = require('./auth');
 
 const app = express();
@@ -22,7 +22,6 @@ app.use((req, res, next) => {
 // Configurações
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || 'localhost';
-const DATABASE_PATH = process.env.DATABASE_PATH || './crm.sqlite';
 
 // Middleware para desabilitar cache do index.html e arquivos críticos
 app.use((req, res, next) => {
@@ -40,57 +39,10 @@ app.use(express.static(path.join(__dirname, '../frontend'), {
   etag: false
 }));
 
-// Banco SQLite
-const db = new sqlite3.Database(DATABASE_PATH);
-db.serialize(() => {
-  // Tabela de usuários com role (admin/user)
-  db.run(`CREATE TABLE IF NOT EXISTS usuarios (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE,
-    cpf TEXT UNIQUE,
-    senha TEXT NOT NULL,
-    nome TEXT NOT NULL,
-    role TEXT DEFAULT 'user',
-    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-  
-  // Criar usuário admin se não existir
-  db.get('SELECT * FROM usuarios WHERE role = ?', ['admin'], (err, row) => {
-    if (!row) {
-      const adminEmail = 'admin@crm.local';
-      const adminCpf = '02850697567';
-      const adminSenha = 'JL10@dez';
-      
-      hashPassword(adminSenha).then(senhaHash => {
-        db.run(
-          'INSERT INTO usuarios (email, cpf, senha, nome, role) VALUES (?, ?, ?, ?, ?)',
-          [adminEmail, adminCpf, senhaHash, 'Administrador', 'admin'],
-          (err) => {
-            if (!err) console.log('✓ Usuário admin criado automaticamente');
-          }
-        );
-      });
-    }
-  });
-  
-  db.run(`CREATE TABLE IF NOT EXISTS clientes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    usuario_id INTEGER NOT NULL,
-    nome TEXT,
-    telefone TEXT,
-    email TEXT,
-    FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
-  )`);
-  
-  db.run(`CREATE TABLE IF NOT EXISTS vendas (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    usuario_id INTEGER NOT NULL,
-    produto TEXT,
-    valor REAL,
-    comissao REAL,
-    data TEXT,
-    FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
-  )`);
+// Inicializar banco PostgreSQL
+initDatabase().catch(err => {
+  console.error('Falha ao inicializar banco:', err);
+  process.exit(1);
 });
 
 // ============ ROTAS DE AUTENTICAÇÃO ============
@@ -106,34 +58,31 @@ app.post('/api/auth/register', async (req, res) => {
 
     const senhaHash = await hashPassword(senha);
 
-    db.run(
-      'INSERT INTO usuarios (email, senha, nome) VALUES (?, ?, ?)',
-      [email, senhaHash, nome],
-      function(err) {
-        if (err) {
-          if (err.message.includes('UNIQUE constraint failed')) {
-            return res.status(409).json({ error: 'Email já cadastrado' });
-          }
-          return res.status(500).json({ error: 'Erro ao registrar' });
-        }
-
-        const token = generateToken(this.lastID, email);
-        res.status(201).json({
-          id: this.lastID,
-          email,
-          nome,
-          token
-        });
-      }
+    const result = await pool.query(
+      'INSERT INTO usuarios (email, senha, nome) VALUES ($1, $2, $3) RETURNING id, email, nome',
+      [email, senhaHash, nome]
     );
+
+    const usuario = result.rows[0];
+    const token = generateToken(usuario.id, usuario.email);
+    
+    res.status(201).json({
+      id: usuario.id,
+      email: usuario.email,
+      nome: usuario.nome,
+      token
+    });
   } catch (err) {
+    if (err.code === '23505') { // Violação de constraint UNIQUE
+      return res.status(409).json({ error: 'Email já cadastrado' });
+    }
     console.error(err);
-    res.status(500).json({ error: 'Erro no servidor' });
+    res.status(500).json({ error: 'Erro ao registrar' });
   }
 });
 
 // LOGIN - Autenticar usuário (email ou CPF)
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, senha } = req.body;
 
@@ -142,31 +91,30 @@ app.post('/api/auth/login', (req, res) => {
     }
 
     // Buscar por email OU cpf
-    db.get(
-      'SELECT * FROM usuarios WHERE email = ? OR cpf = ?',
-      [email, email],
-      async (err, usuario) => {
-        if (err) return res.status(500).json({ error: 'Erro no servidor' });
-
-        if (!usuario) {
-          return res.status(401).json({ error: 'Email/CPF ou senha inválidos' });
-        }
-
-        const valida = await verifyPassword(senha, usuario.senha);
-        if (!valida) {
-          return res.status(401).json({ error: 'Email/CPF ou senha inválidos' });
-        }
-
-        const token = generateToken(usuario.id, usuario.email);
-        res.json({
-          id: usuario.id,
-          email: usuario.email,
-          nome: usuario.nome,
-          role: usuario.role,
-          token
-        });
-      }
+    const result = await pool.query(
+      'SELECT * FROM usuarios WHERE email = $1 OR cpf = $1',
+      [email]
     );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Email/CPF ou senha inválidos' });
+    }
+
+    const usuario = result.rows[0];
+    const valida = await verifyPassword(senha, usuario.senha);
+    
+    if (!valida) {
+      return res.status(401).json({ error: 'Email/CPF ou senha inválidos' });
+    }
+
+    const token = generateToken(usuario.id, usuario.email);
+    res.json({
+      id: usuario.id,
+      email: usuario.email,
+      nome: usuario.nome,
+      role: usuario.role,
+      token
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erro no servidor' });
@@ -174,56 +122,61 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 // VERIFICAR TOKEN - Validar autenticação
-app.get('/api/auth/me', authMiddleware, (req, res) => {
-  db.get('SELECT id, email, nome, role FROM usuarios WHERE id = ?', [req.user.userId], (err, usuario) => {
-    if (err || !usuario) {
+app.get('/api/auth/me', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, email, nome, role FROM usuarios WHERE id = $1',
+      [req.user.userId]
+    );
+    
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
-    res.json(usuario);
-  });
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro no servidor' });
+  }
 });
 
 // CRIAR NOVO USUÁRIO (apenas admin)
 app.post('/api/auth/create-user', authMiddleware, async (req, res) => {
   try {
     // Verificar se é admin
-    db.get('SELECT role FROM usuarios WHERE id = ?', [req.user.userId], async (err, admin) => {
-      if (err || !admin || admin.role !== 'admin') {
-        return res.status(403).json({ error: 'Apenas administrador pode criar usuários' });
-      }
+    const adminCheck = await pool.query('SELECT role FROM usuarios WHERE id = $1', [req.user.userId]);
+    
+    if (adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Apenas administrador pode criar usuários' });
+    }
 
-      const { email, cpf, senha, nome } = req.body;
+    const { email, cpf, senha, nome } = req.body;
 
-      if (!email || !cpf || !senha || !nome) {
-        return res.status(400).json({ error: 'Email, CPF, senha e nome são obrigatórios' });
-      }
+    if (!email || !cpf || !senha || !nome) {
+      return res.status(400).json({ error: 'Email, CPF, senha e nome são obrigatórios' });
+    }
 
-      const senhaHash = await hashPassword(senha);
+    const senhaHash = await hashPassword(senha);
 
-      db.run(
-        'INSERT INTO usuarios (email, cpf, senha, nome, role) VALUES (?, ?, ?, ?, ?)',
-        [email, cpf, senhaHash, nome, 'user'],
-        function(err) {
-          if (err) {
-            if (err.message.includes('UNIQUE constraint failed')) {
-              return res.status(409).json({ error: 'Email ou CPF já cadastrado' });
-            }
-            return res.status(500).json({ error: 'Erro ao criar usuário' });
-          }
+    const result = await pool.query(
+      'INSERT INTO usuarios (email, cpf, senha, nome, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, email, cpf, nome, role',
+      [email, cpf, senhaHash, nome, 'user']
+    );
 
-          res.status(201).json({
-            id: this.lastID,
-            email,
-            cpf,
-            nome,
-            role: 'user'
-          });
-        }
-      );
+    const usuario = result.rows[0];
+    res.status(201).json({
+      id: usuario.id,
+      email: usuario.email,
+      cpf: usuario.cpf,
+      nome: usuario.nome,
+      role: usuario.role
     });
   } catch (err) {
+    if (err.code === '23505') { // Violação de constraint UNIQUE
+      return res.status(409).json({ error: 'Email ou CPF já cadastrado' });
+    }
     console.error(err);
-    res.status(500).json({ error: 'Erro no servidor' });
+    res.status(500).json({ error: 'Erro ao criar usuário' });
   }
 });
 
@@ -256,160 +209,212 @@ app.get('/', (req, res) => {
 });
 
 // Proteger rotas de API com authMiddleware
-app.get('/api/clientes', authMiddleware, (req, res) => {
-  db.all('SELECT * FROM clientes WHERE usuario_id = ?', [req.user.userId], (err, rows) => {
-    if (err) return res.status(500).json(err);
-    res.json(rows);
-  });
+app.get('/api/clientes', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM clientes WHERE usuario_id = $1 ORDER BY criado_em DESC',
+      [req.user.userId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao buscar clientes' });
+  }
 });
 
-app.post('/api/clientes', authMiddleware, (req, res) => {
-  const { nome, telefone, email } = req.body;
-  db.run('INSERT INTO clientes (usuario_id, nome, telefone, email) VALUES (?,?,?,?)', 
-    [req.user.userId, nome, telefone, email], 
-    function(err) {
-      if (err) return res.status(500).json(err);
-      res.json({ id: this.lastID });
-    });
+app.post('/api/clientes', authMiddleware, async (req, res) => {
+  try {
+    const { nome, telefone, email } = req.body;
+    const result = await pool.query(
+      'INSERT INTO clientes (usuario_id, nome, telefone, email) VALUES ($1, $2, $3, $4) RETURNING id, usuario_id, nome, telefone, email',
+      [req.user.userId, nome, telefone, email]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao criar cliente' });
+  }
 });
 
-app.get('/api/vendas', authMiddleware, (req, res) => {
-  // Middleware que busca role do usuário
-  db.get('SELECT role FROM usuarios WHERE id = ?', [req.user.userId], (err, user) => {
-    if (err) return res.status(500).json(err);
+app.get('/api/vendas', authMiddleware, async (req, res) => {
+  try {
+    // Buscar role do usuário
+    const userResult = await pool.query('SELECT role FROM usuarios WHERE id = $1', [req.user.userId]);
+    const user = userResult.rows[0];
 
     // Admin vê TODAS as vendas, user vê apenas suas
-    const query = user.role === 'admin' 
-      ? 'SELECT * FROM vendas' 
-      : 'SELECT * FROM vendas WHERE usuario_id = ?';
-    const params = user.role === 'admin' ? [] : [req.user.userId];
-
-    db.all(query, params, (err, rows) => {
-      if (err) return res.status(500).json(err);
-      res.json(rows);
-    });
-  });
+    let result;
+    if (user.role === 'admin') {
+      result = await pool.query('SELECT * FROM vendas ORDER BY data DESC');
+    } else {
+      result = await pool.query(
+        'SELECT * FROM vendas WHERE usuario_id = $1 ORDER BY data DESC',
+        [req.user.userId]
+      );
+    }
+    
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao buscar vendas' });
+  }
 });
 
-app.post('/api/vendas', authMiddleware, (req, res) => {
-  const { produto, valor, comissao, data } = req.body;
-  const dataVenda = data || new Date().toISOString();
-  db.run('INSERT INTO vendas (usuario_id, produto, valor, comissao, data) VALUES (?,?,?,?,?)', 
-    [req.user.userId, produto, valor, comissao, dataVenda], 
-    function(err) {
-      if (err) return res.status(500).json(err);
-      res.json({ id: this.lastID, usuario_id: req.user.userId, produto, valor, comissao, data: dataVenda });
-    });
+app.post('/api/vendas', authMiddleware, async (req, res) => {
+  try {
+    const { produto, valor, comissao, data } = req.body;
+    const dataVenda = data || new Date().toISOString();
+    
+    const result = await pool.query(
+      'INSERT INTO vendas (usuario_id, produto, valor, comissao, data) VALUES ($1, $2, $3, $4, $5) RETURNING id, usuario_id, produto, valor, comissao, data',
+      [req.user.userId, produto, valor, comissao, dataVenda]
+    );
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao criar venda' });
+  }
 });
 
 // PUT /api/vendas/:id - Atualizar venda
-app.put('/api/vendas/:id', authMiddleware, (req, res) => {
-  const { produto, valor, comissao, data } = req.body;
-  db.run('UPDATE vendas SET produto=?, valor=?, comissao=?, data=? WHERE id=? AND usuario_id=?', 
-    [produto, valor, comissao, data, req.params.id, req.user.userId], 
-    function(err) {
-      if (err) return res.status(500).json(err);
-      res.json({ id: req.params.id, produto, valor, comissao, data });
-    });
+app.put('/api/vendas/:id', authMiddleware, async (req, res) => {
+  try {
+    const { produto, valor, comissao, data } = req.body;
+    const result = await pool.query(
+      'UPDATE vendas SET produto=$1, valor=$2, comissao=$3, data=$4 WHERE id=$5 AND usuario_id=$6 RETURNING *',
+      [produto, valor, comissao, data, req.params.id, req.user.userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Venda não encontrada' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao atualizar venda' });
+  }
 });
 
 // DELETE /api/vendas/:id - Deletar venda
-app.delete('/api/vendas/:id', authMiddleware, (req, res) => {
-  db.run('DELETE FROM vendas WHERE id=? AND usuario_id=?', 
-    [req.params.id, req.user.userId], 
-    function(err) {
-      if (err) return res.status(500).json(err);
-      res.json({ success: true });
-    });
+app.delete('/api/vendas/:id', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM vendas WHERE id=$1 AND usuario_id=$2',
+      [req.params.id, req.user.userId]
+    );
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Venda não encontrada' });
+    }
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao deletar venda' });
+  }
 });
 
 // PUT /api/clientes/:id - Atualizar cliente
-app.put('/api/clientes/:id', authMiddleware, (req, res) => {
-  const { nome, telefone, email } = req.body;
-  db.run('UPDATE clientes SET nome=?, telefone=?, email=? WHERE id=? AND usuario_id=?', 
-    [nome, telefone, email, req.params.id, req.user.userId], 
-    function(err) {
-      if (err) return res.status(500).json(err);
-      res.json({ id: req.params.id, nome, telefone, email });
-    });
+app.put('/api/clientes/:id', authMiddleware, async (req, res) => {
+  try {
+    const { nome, telefone, email } = req.body;
+    const result = await pool.query(
+      'UPDATE clientes SET nome=$1, telefone=$2, email=$3 WHERE id=$4 AND usuario_id=$5 RETURNING *',
+      [nome, telefone, email, req.params.id, req.user.userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Cliente não encontrado' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao atualizar cliente' });
+  }
 });
 
 // DELETE /api/clientes/:id - Deletar cliente
-app.delete('/api/clientes/:id', authMiddleware, (req, res) => {
-  db.run('DELETE FROM clientes WHERE id=? AND usuario_id=?', 
-    [req.params.id, req.user.userId], 
-    function(err) {
-      if (err) return res.status(500).json(err);
-      res.json({ success: true });
-    });
+app.delete('/api/clientes/:id', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM clientes WHERE id=$1 AND usuario_id=$2',
+      [req.params.id, req.user.userId]
+    );
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Cliente não encontrado' });
+    }
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao deletar cliente' });
+  }
 });
 
 // POST /api/bulk/clientes - Importar múltiplos clientes
-app.post('/api/bulk/clientes', authMiddleware, (req, res) => {
-  const { clientes: clientesArray } = req.body;
-  if (!Array.isArray(clientesArray)) {
-    return res.status(400).json({ error: 'Envie um array de clientes' });
-  }
-  
-  let inserted = 0;
-  let skipped = 0;
-  
-  const insertOne = (index) => {
-    if (index >= clientesArray.length) {
-      return res.json({ inserted, skipped, total: clientesArray.length });
+app.post('/api/bulk/clientes', authMiddleware, async (req, res) => {
+  try {
+    const { clientes: clientesArray } = req.body;
+    if (!Array.isArray(clientesArray)) {
+      return res.status(400).json({ error: 'Envie um array de clientes' });
     }
     
-    const cliente = clientesArray[index];
-    db.run(
-      'INSERT OR REPLACE INTO clientes (usuario_id, nome, telefone, email) VALUES (?,?,?,?)', 
-      [req.user.userId, cliente.nome, cliente.telefone, cliente.email], 
-      function(err) {
-        if (err) {
-          console.error('Erro ao inserir cliente:', err);
-          skipped++;
-        } else {
-          inserted++;
-        }
-        insertOne(index + 1);
+    let inserted = 0;
+    let skipped = 0;
+    
+    for (const cliente of clientesArray) {
+      try {
+        await pool.query(
+          'INSERT INTO clientes (usuario_id, nome, telefone, email) VALUES ($1, $2, $3, $4)',
+          [req.user.userId, cliente.nome, cliente.telefone, cliente.email]
+        );
+        inserted++;
+      } catch (err) {
+        console.error('Erro ao inserir cliente:', err);
+        skipped++;
       }
-    );
-  };
-  
-  insertOne(0);
+    }
+    
+    res.json({ inserted, skipped, total: clientesArray.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao importar clientes' });
+  }
 });
 
 // POST /api/bulk/vendas - Importar múltiplas vendas
-app.post('/api/bulk/vendas', authMiddleware, (req, res) => {
-  const { vendas: vendasArray } = req.body;
-  if (!Array.isArray(vendasArray)) {
-    return res.status(400).json({ error: 'Envie um array de vendas' });
-  }
-  
-  let inserted = 0;
-  let skipped = 0;
-  
-  const insertOne = (index) => {
-    if (index >= vendasArray.length) {
-      return res.json({ inserted, skipped, total: vendasArray.length });
+app.post('/api/bulk/vendas', authMiddleware, async (req, res) => {
+  try {
+    const { vendas: vendasArray } = req.body;
+    if (!Array.isArray(vendasArray)) {
+      return res.status(400).json({ error: 'Envie um array de vendas' });
     }
     
-    const venda = vendasArray[index];
-    db.run(
-      'INSERT INTO vendas (usuario_id, produto, valor, comissao, data) VALUES (?,?,?,?,?)', 
-      [req.user.userId, venda.produto, venda.valor, venda.comissao, venda.data], 
-      function(err) {
-        if (err) {
-          console.error('Erro ao inserir venda:', err);
-          skipped++;
-        } else {
-          inserted++;
-        }
-        insertOne(index + 1);
+    let inserted = 0;
+    let skipped = 0;
+    
+    for (const venda of vendasArray) {
+      try {
+        await pool.query(
+          'INSERT INTO vendas (usuario_id, produto, valor, comissao, data) VALUES ($1, $2, $3, $4, $5)',
+          [req.user.userId, venda.produto, venda.valor, venda.comissao, venda.data]
+        );
+        inserted++;
+      } catch (err) {
+        console.error('Erro ao inserir venda:', err);
+        skipped++;
       }
-    );
-  };
-  
-  insertOne(0);
+    }
+    
+    res.json({ inserted, skipped, total: vendasArray.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao importar vendas' });
+  }
 });
 
 app.get('/health', (req, res) => res.json({ status: 'OK' }));
@@ -418,6 +423,6 @@ app.get('/health', (req, res) => res.json({ status: 'OK' }));
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`CRM Vendas Pro rodando em http://0.0.0.0:${PORT}`);
   console.log(`Acesse em: http://localhost:${PORT} (local) ou via domínio (produção)`);
-  console.log(`Database: ${DATABASE_PATH}`);
+  console.log(`Database: PostgreSQL`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });

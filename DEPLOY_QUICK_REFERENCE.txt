@@ -1,0 +1,241 @@
+════════════════════════════════════════════════════════════════════════════════
+                  🚀 CRM VENDAS PRO - DEPLOY RENDER v2.0.0
+════════════════════════════════════════════════════════════════════════════════
+
+[FASE 1] SETUP LOCAL
+─────────────────────────────────────────────────────────────────────────────
+
+Windows (PowerShell):
+  powershell -ExecutionPolicy Bypass -File .\setup-render.ps1
+
+Mac/Linux (Bash):
+  bash setup-render.sh
+
+Resultado:
+  ✓ render-env.txt criado (salve em local seguro!)
+  ✓ Git configurado
+  ✓ .gitignore criado
+
+
+[FASE 2] GITHUB
+─────────────────────────────────────────────────────────────────────────────
+
+1. Criar repositório:
+   https://github.com/new
+   Nome: crm-vendas-pro
+
+2. Fazer push:
+   
+   Automático:
+     bash github-push.sh
+   
+   Ou manual:
+     git remote add origin https://github.com/SEU_USER/crm-vendas-pro.git
+     git branch -M main
+     git push -u origin main
+
+3. Verificar:
+   https://github.com/SEU_USER/crm-vendas-pro
+   (deve ter todo o código)
+
+
+[FASE 3] POSTGRESQL NO RENDER
+─────────────────────────────────────────────────────────────────────────────
+
+1. Ir em: https://render.com/dashboard
+
+2. Clique: New + → PostgreSQL
+
+3. Preencha:
+   Name: crm-vendas-pro-db
+   Database: crm_vendas_pro
+   User: postgres
+   Region: Mais próximo
+
+4. Clique: Create Database
+
+5. ⏳ AGUARDE 2-5 MINUTOS
+
+6. Quando pronto:
+   Copie a connection string
+   Extraia: DB_HOST, DB_USER, DB_PASSWORD
+
+
+[FASE 4] WEB SERVICE NO RENDER
+─────────────────────────────────────────────────────────────────────────────
+
+1. Dashboard → New + → Web Service
+
+2. Conectar GitHub: crm-vendas-pro
+
+3. Preencha:
+   Name: crm-vendas-pro
+   Build Command: npm install
+   Start Command: node backend/server.js
+
+4. IMPORTANTE - Add Environment Variables:
+   
+   PORT                    10000
+   HOST                    0.0.0.0
+   NODE_ENV                production
+   DB_HOST                 [do PostgreSQL acima]
+   DB_PORT                 5432
+   DB_USER                 postgres
+   DB_PASSWORD             [do PostgreSQL acima]
+   DB_NAME                 crm_vendas_pro
+   JWT_SECRET              [do render-env.txt]
+
+5. Clique: Create Web Service
+
+6. ⏳ AGUARDE 1-2 MINUTOS
+
+
+[FASE 5] VERIFICAR DEPLOY
+─────────────────────────────────────────────────────────────────────────────
+
+1. Render Dashboard → Seu Web Service
+
+2. Vá em: Logs
+
+3. Procure por:
+   "Servidor iniciado com sucesso"
+   ou "Tabelas criadas com sucesso"
+   ou "Listening on port 10000"
+
+Se tiver erro:
+  - Red error message?
+  - Check: DB_HOST, DB_PASSWORD, variáveis
+  - Clique: Manual Deploy
+
+
+[FASE 6] ACESSAR APLICAÇÃO
+─────────────────────────────────────────────────────────────────────────────
+
+1. Copie a URL (ex: https://crm-vendas-pro.onrender.com)
+
+2. Abra no navegador
+
+3. Login:
+   Email: admin@crm.local
+   Senha: JL10@dez
+
+4. ✅ Sucesso = deve estar logado
+
+
+[FASE 7] TESTES
+─────────────────────────────────────────────────────────────────────────────
+
+[ ] Health check: curl https://SEU_URL/health
+[ ] Criar cliente: UI → + Cliente
+[ ] Criar venda: UI → + Venda
+[ ] Exportar: UI → Download/Export
+[ ] Verificar DB: Render → PostgreSQL → PSQL → SELECT COUNT(*) FROM clientes;
+
+
+[FASE 8] SEGURANÇA (IMPORTANTE!)
+─────────────────────────────────────────────────────────────────────────────
+
+1. Faça login como admin
+
+2. Vá em: Configurações → Perfil
+
+3. Mudar Senha:
+   De: JL10@dez
+   Para: SUA_SENHA_FORTE
+
+4. Guarde em local SEGURO:
+   [ ] JWT_SECRET (render-env.txt)
+   [ ] Nova senha admin
+   [ ] URL da aplicação
+
+
+════════════════════════════════════════════════════════════════════════════════
+                              TROUBLESHOOTING
+════════════════════════════════════════════════════════════════════════════════
+
+ERRO: "Connection refused" / "Database connection failed"
+────────────────────────────────────────────────────────────
+Causa: Database não está pronto ou credenciais erradas
+Solução:
+  1. Aguarde 5 minutos (database leva tempo)
+  2. Copie exatamente DB_HOST e DB_PASSWORD
+  3. Verify: DB_NAME = crm_vendas_pro
+  4. Clique: Manual Deploy (no Render)
+
+
+ERRO: "Cannot find module 'pg'"
+────────────────────────────────────────────────────────────
+Causa: npm install não foi executado
+Solução:
+  1. Check Build Command: npm install
+  2. Clique: Manual Deploy
+  3. Aguarde novo deploy
+
+
+ERRO: Admin não consegue fazer login
+────────────────────────────────────────────────────────────
+Causa: Senha errada ou JWT_SECRET não configurado
+Solução:
+  1. Tente exatamente: JL10@dez
+  2. Check: JWT_SECRET está setado (não vazio)
+  3. Aguarde 30s
+  4. Se persistir, redeploy
+
+
+ERRO: "504 Gateway Timeout"
+────────────────────────────────────────────────────────────
+Causa: Free plan é lento / query pesada
+Solução:
+  1. Aguarde alguns minutos
+  2. Tente novamente
+  3. Considere upgrade Render plan
+
+
+ERRO: Não consigo conectar com GitHub
+────────────────────────────────────────────────────────────
+Causa: Token expirado ou permissão negada
+Solução:
+  1. Faça logout do Render
+  2. Faça login novamente
+  3. Reconnecte GitHub
+
+
+════════════════════════════════════════════════════════════════════════════════
+                            ARQUIVOS IMPORTANTES
+════════════════════════════════════════════════════════════════════════════════
+
+render-env.txt                → Variáveis de ambiente (GUARDE!)
+READY_TO_DEPLOY.md            → Guia completo com passos
+DEPLOY_CHECKLIST.md           → Checklist interativa
+DEPLOY_RENDER.md              → Guia técnico detalhado
+RENDER_CHECKLIST.md           → Referência rápida
+RENDER_PRODUCAO.md            → Otimizações
+TROUBLESHOOTING.md            → Solução de problemas
+
+
+════════════════════════════════════════════════════════════════════════════════
+                             INFORMAÇÕES FINAIS
+════════════════════════════════════════════════════════════════════════════════
+
+✅ DATABASE: PostgreSQL 15+ (Render managed)
+✅ AUTH: JWT 7 dias + bcrypt
+✅ API: 14 rotas async/await
+✅ STATUS: Pronto para produção
+✅ ADMIN PADRÃO: admin@crm.local / JL10@dez
+
+Versão: PostgreSQL v2.0.0
+Data: 2026-01-14
+Plataforma: Render.com
+
+
+════════════════════════════════════════════════════════════════════════════════
+                          🎉 TUDO PRONTO PARA DEPLOY!
+════════════════════════════════════════════════════════════════════════════════
+
+Próximo passo: Execute o script de setup
+  Windows: powershell -ExecutionPolicy Bypass -File .\setup-render.ps1
+  Mac/Linux: bash setup-render.sh
+
+Dúvidas? Veja: READY_TO_DEPLOY.md
+
+════════════════════════════════════════════════════════════════════════════════

@@ -1,4 +1,5 @@
 // auth-frontend.js - Funções de autenticação para o frontend
+// NOTA: Removido localStorage - usando apenas cookies e sessão
 
 /**
  * Fazer login com email/CPF
@@ -9,7 +10,7 @@ async function login(emailOrCpf, senha) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: emailOrCpf, senha }),
-      credentials: 'include' // IMPORTANTE: enviar cookies
+      credentials: 'include' // IMPORTANTE: enviar/receber cookies
     });
 
     if (!res.ok) {
@@ -19,15 +20,11 @@ async function login(emailOrCpf, senha) {
 
     const data = await res.json();
     
-    // Salvar token no localStorage E em cookie
-    localStorage.setItem('auth_token', data.token);
-    localStorage.setItem('user_id', data.id);
-    localStorage.setItem('user_email', data.email);
-    localStorage.setItem('user_nome', data.nome);
-    localStorage.setItem('user_role', data.role);
-
-    // Salvar em cookie para o servidor ler
+    // Salvar token apenas em cookie (seguro)
     document.cookie = `auth_token=${data.token}; path=/; max-age=604800; SameSite=Lax`;
+    
+    // Guardar em memória (não persiste após refresh)
+    window.currentUser = data;
 
     return data;
   } catch (err) {
@@ -45,7 +42,7 @@ async function register(email, senha, nome) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, senha, nome }),
-      credentials: 'include' // IMPORTANTE: enviar cookies
+      credentials: 'include' // IMPORTANTE: enviar/receber cookies
     });
 
     if (!res.ok) {
@@ -55,15 +52,11 @@ async function register(email, senha, nome) {
 
     const data = await res.json();
 
-    // Salvar token no localStorage E em cookie
-    localStorage.setItem('auth_token', data.token);
-    localStorage.setItem('user_id', data.id);
-    localStorage.setItem('user_email', data.email);
-    localStorage.setItem('user_nome', data.nome);
-    localStorage.setItem('user_role', data.role || 'user');
-
-    // Salvar em cookie para o servidor ler
+    // Salvar token apenas em cookie (seguro)
     document.cookie = `auth_token=${data.token}; path=/; max-age=604800; SameSite=Lax`;
+    
+    // Guardar em memória
+    window.currentUser = data;
 
     return data;
   } catch (err) {
@@ -76,14 +69,11 @@ async function register(email, senha, nome) {
  * Fazer logout
  */
 function logout() {
-  localStorage.removeItem('auth_token');
-  localStorage.removeItem('user_id');
-  localStorage.removeItem('user_email');
-  localStorage.removeItem('user_nome');
-  localStorage.removeItem('user_role');
-  
   // Remover cookie
   document.cookie = 'auth_token=; path=/; max-age=0;';
+  
+  // Limpar memória
+  window.currentUser = null;
   
   window.location.href = '/login.html';
 }
@@ -92,33 +82,48 @@ function logout() {
  * Verificar se usuário está autenticado
  */
 function isAuthenticated() {
-  return !!localStorage.getItem('auth_token');
+  return !!getToken();
 }
 
 /**
- * Obter token atual
+ * Obter token do cookie
  */
 function getToken() {
-  return localStorage.getItem('auth_token');
+  const cookies = document.cookie.split(';');
+  for (let cookie of cookies) {
+    const [name, value] = cookie.trim().split('=');
+    if (name === 'auth_token') return value;
+  }
+  return null;
 }
 
 /**
- * Obter dados do usuário
+ * Buscar dados do usuário do servidor
  */
-function getCurrentUser() {
-  return {
-    id: localStorage.getItem('user_id'),
-    email: localStorage.getItem('user_email'),
-    nome: localStorage.getItem('user_nome'),
-    role: localStorage.getItem('user_role') || 'user'
-  };
+async function getCurrentUser() {
+  try {
+    const res = await fetch('/api/auth/me', {
+      headers: getAuthHeaders(),
+      credentials: 'include'
+    });
+    
+    if (!res.ok) return null;
+    
+    const user = await res.json();
+    window.currentUser = user;
+    return user;
+  } catch (err) {
+    console.error('Error fetching current user:', err);
+    return null;
+  }
 }
 
 /**
  * Verificar se usuário é admin
  */
-function isAdmin() {
-  return getCurrentUser().role === 'admin';
+async function isAdmin() {
+  const user = window.currentUser || await getCurrentUser();
+  return user?.role === 'admin';
 }
 
 /**

@@ -1,0 +1,268 @@
+#!/bin/bash
+# PRIMEIRO RUN - Instruções para primeira execução
+
+cat << 'EOF'
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                   🎯 PRIMEIRA EXECUÇÃO - PASSO A PASSO                    ║
+║                                                                            ║
+║               CRM Vendas Pro - PostgreSQL Edition v2.0.0                  ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+Este arquivo ajuda você a executar o CRM pela primeira vez.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📋 REQUISITOS (verificar antes de começar):
+
+   1. PostgreSQL instalado:
+      • Windows: https://www.postgresql.org/download/windows/
+      • macOS: brew install postgresql
+      • Linux: apt-get install postgresql
+
+   2. Node.js instalado:
+      • https://nodejs.org/
+      • Versão mínima: 12.0.0
+
+   3. npm funcionando:
+      npm --version
+
+   4. Editor de texto (para editar .env):
+      • Visual Studio Code
+      • Notepad++
+      • Vim/Nano
+      • Qualquer editor de texto
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ PASSO 1: Verificar Instalações
+
+Execute os comandos abaixo para verificar:
+
+   # Verificar PostgreSQL
+   psql --version
+   
+   # Verificar Node.js
+   node --version
+   
+   # Verificar npm
+   npm --version
+
+Se algum comando não funcionar, instale o software antes de continuar!
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ PASSO 2: Criar Banco de Dados PostgreSQL
+
+Abra um terminal e execute:
+
+   # Conectar ao PostgreSQL
+   psql -U postgres
+   
+   # No prompt SQL, execute:
+   CREATE DATABASE crm_vendas_pro;
+   
+   # Verificar
+   \l
+   
+   # Sair
+   \q
+
+Você deve ver "crm_vendas_pro" na lista de bancos.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ PASSO 3: Configurar Variáveis de Ambiente
+
+Na pasta "backend", execute:
+
+   # Copiar arquivo de exemplo
+   cp .env.example .env
+   
+   # Editar o arquivo (use um editor)
+   code .env    # Se tiver VSCode
+   
+   # Ou abra manualmente em um editor
+
+Verifique que tem estas linhas (com seus dados):
+
+   PORT=3000
+   HOST=localhost
+   NODE_ENV=development
+   
+   DB_HOST=localhost
+   DB_PORT=5432
+   DB_USER=postgres
+   DB_PASSWORD=sua_senha_aqui
+   DB_NAME=crm_vendas_pro
+   
+   JWT_SECRET=uma-chave-secreta-muito-segura-aqui
+
+IMPORTANTE: Atualize DB_PASSWORD com a senha do seu PostgreSQL!
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ PASSO 4: Instalar Dependências
+
+Na pasta "backend", execute:
+
+   npm install
+
+Isso vai baixar todas as bibliotecas necessárias.
+
+Aguarde até terminar (pode levar 1-2 minutos).
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ PASSO 5: Iniciar o Servidor
+
+Ainda na pasta "backend", execute:
+
+   npm start
+
+Você deve ver mensagens como:
+
+   CRM Vendas Pro rodando em http://0.0.0.0:3000
+   Acesse em: http://localhost:3000 (local) ou via domínio (produção)
+   Database: PostgreSQL
+   Environment: development
+   ✓ Tabelas criadas com sucesso
+   ✓ Usuário admin criado automaticamente
+
+Se vir mensagens de erro, consulte TROUBLESHOOTING.md
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ PASSO 6: Acessar a Aplicação
+
+Abra seu navegador e vá para:
+
+   http://localhost:3000
+
+Você deve ver a página de login.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ PASSO 7: Fazer Login
+
+Use as credenciais padrão:
+
+   Email:   admin@crm.local
+   Senha:   JL10@dez
+
+Clique em "Entrar".
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ PASSO 8: Mudar Senha do Admin (IMPORTANTE!)
+
+Após fazer login, mude imediatamente a senha do admin.
+
+Se não houver interface para isso, execute no banco:
+
+   psql -U postgres -d crm_vendas_pro
+   
+   UPDATE usuarios SET senha = crypt('sua_nova_senha', gen_salt('bf'))
+   WHERE email = 'admin@crm.local';
+   
+   \q
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ PASSO 9: Testar Funcionalidades
+
+1. Lista de Clientes
+   └─ Clique em "Clientes"
+      Deve estar vazia inicialmente
+      Clique em "Adicionar Cliente"
+
+2. Criar Cliente
+   └─ Preencha Nome, Telefone, Email
+      Clique em "Salvar"
+      Cliente deve aparecer na lista
+
+3. Lista de Vendas
+   └─ Clique em "Vendas"
+      Deve estar vazia inicialmente
+
+4. Criar Venda
+   └─ Clique em "Adicionar Venda"
+      Preencha Produto, Valor, Comissão
+      Clique em "Salvar"
+
+Se tudo funcionar, parabéns! ✅
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🆘 ALGO DEU ERRADO?
+
+1. Leia a mensagem de erro com atenção
+2. Consulte TROUBLESHOOTING.md
+3. Verifica se PostgreSQL está rodando
+4. Verifique se .env está correto
+5. Se ainda não funcionar, tente reset completo em TROUBLESHOOTING.md
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📚 PRÓXIMOS PASSOS:
+
+Depois de confirmado que está funcionando:
+
+1. Ler documentação:
+   ├─ README_MIGRACAO.md     (resumo técnico)
+   ├─ SUMMARY.md              (mudanças detalhadas)
+   └─ QUICK_REFERENCE.md      (consulta rápida)
+
+2. Explorar funcionalidades:
+   ├─ Adicionar vários clientes
+   ├─ Registrar vendas
+   ├─ Testar filtros e busca
+   └─ Criar outros usuários (se tiver interface admin)
+
+3. Preparar para produção:
+   ├─ Mudar JWT_SECRET
+   ├─ Configurar HTTPS
+   ├─ Backup do banco
+   └─ Monitoramento
+
+═══════════════════════════════════════════════════════════════════════════════
+
+💡 DICAS:
+
+• Manter terminal aberto enquanto desenvolve (para ver logs)
+• Usar Ctrl+C para parar o servidor
+• Recarregar página no navegador (F5) se tiver problemas
+• Testar com diferentes navegadores
+• Fazer backup frequente do banco
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🎉 BOM DESENVOLVIMENTO! 🎉
+
+Seu CRM está pronto para usar. Qualquer dúvida, consulte os guias!
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Comandos rápidos para referência:
+
+   # Iniciar servidor
+   npm start
+   
+   # Parar servidor
+   Ctrl + C
+   
+   # Conectar ao PostgreSQL
+   psql -U postgres -d crm_vendas_pro
+   
+   # Ver usuários
+   SELECT id, email, nome, role FROM usuarios;
+   
+   # Ver clientes
+   SELECT * FROM clientes;
+   
+   # Sair do PostgreSQL
+   \q
+
+═══════════════════════════════════════════════════════════════════════════════
+
+EOF

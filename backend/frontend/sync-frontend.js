@@ -1,7 +1,64 @@
-// sync-frontend.js - Sincronização de dados entre servidor e IndexedDB
+// sync-frontend.js - Sincronização de dados com o servidor PostgreSQL
+// NOTA: Removido IndexedDB - todos os dados são mantidos apenas no servidor
 
 /**
- * Sincronizar dados do servidor para IndexedDB na inicialização
+ * Buscar clientes do servidor
+ */
+async function fetchClientes() {
+  try {
+    if (!isAuthenticated()) {
+      throw new Error('Usuário não autenticado');
+    }
+
+    const res = await fetch('/api/clientes', {
+      headers: getAuthHeaders(),
+      credentials: 'include'
+    });
+    
+    if (!res.ok) {
+      throw new Error('Erro ao buscar clientes');
+    }
+    
+    const clientes = await res.json();
+    console.log(`✓ ${clientes.length} clientes carregados do servidor`);
+    window.clientes = clientes; // Manter em memória
+    return clientes;
+  } catch (err) {
+    console.error('Erro ao buscar clientes:', err);
+    throw err;
+  }
+}
+
+/**
+ * Buscar vendas do servidor
+ */
+async function fetchVendas() {
+  try {
+    if (!isAuthenticated()) {
+      throw new Error('Usuário não autenticado');
+    }
+
+    const res = await fetch('/api/vendas', {
+      headers: getAuthHeaders(),
+      credentials: 'include'
+    });
+    
+    if (!res.ok) {
+      throw new Error('Erro ao buscar vendas');
+    }
+    
+    const vendas = await res.json();
+    console.log(`✓ ${vendas.length} vendas carregadas do servidor`);
+    window.vendas = vendas; // Manter em memória
+    return vendas;
+  } catch (err) {
+    console.error('Erro ao buscar vendas:', err);
+    throw err;
+  }
+}
+
+/**
+ * Sincronizar dados do servidor na inicialização
  */
 async function syncDataFromServer() {
   try {
@@ -12,62 +69,16 @@ async function syncDataFromServer() {
 
     console.log('Sincronizando dados do servidor...');
     
-    // Buscar clientes do servidor
+    // Buscar clientes
     try {
-      const clientesRes = await fetch('/api/clientes', {
-        headers: getAuthHeaders(),
-        credentials: 'include'
-      });
-      
-      if (clientesRes.ok) {
-        const clientesData = await clientesRes.json();
-        console.log(`Encontrados ${clientesData.length} clientes no servidor`);
-        
-        // Limpar IndexedDB e popular com dados do servidor
-        if (window.db && window.clientes !== undefined) {
-          const tx = window.db.transaction('clientes', 'readwrite');
-          const store = tx.objectStore('clientes');
-          store.clear();
-          
-          for (const cliente of clientesData) {
-            store.add(cliente);
-          }
-          
-          // Atualizar array global
-          window.clientes = clientesData;
-          console.log('✓ Clientes sincronizados');
-        }
-      }
+      await fetchClientes();
     } catch (err) {
       console.error('Erro ao sincronizar clientes:', err);
     }
     
-    // Buscar vendas do servidor
+    // Buscar vendas
     try {
-      const vendasRes = await fetch('/api/vendas', {
-        headers: getAuthHeaders(),
-        credentials: 'include'
-      });
-      
-      if (vendasRes.ok) {
-        const vendasData = await vendasRes.json();
-        console.log(`Encontradas ${vendasData.length} vendas no servidor`);
-        
-        // Limpar IndexedDB e popular com dados do servidor
-        if (window.db && window.vendas !== undefined) {
-          const tx = window.db.transaction('vendas', 'readwrite');
-          const store = tx.objectStore('vendas');
-          store.clear();
-          
-          for (const venda of vendasData) {
-            store.add(venda);
-          }
-          
-          // Atualizar array global
-          window.vendas = vendasData;
-          console.log('✓ Vendas sincronizadas');
-        }
-      }
+      await fetchVendas();
     } catch (err) {
       console.error('Erro ao sincronizar vendas:', err);
     }
@@ -78,18 +89,17 @@ async function syncDataFromServer() {
 }
 
 /**
- * Salvar cliente no servidor ALÉM de IndexedDB
+ * Salvar cliente no servidor
  */
 async function saveClienteToServer(cliente) {
   try {
-    if (!isAuthenticated()) return cliente; // Sem autenticação, salva só localmente
+    if (!isAuthenticated()) {
+      throw new Error('Usuário não autenticado');
+    }
     
     const res = await fetch('/api/clientes', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders()
-      },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         nome: cliente.nome,
         telefone: cliente.telefone,
@@ -100,8 +110,7 @@ async function saveClienteToServer(cliente) {
     
     if (!res.ok) {
       const error = await res.json();
-      console.error('Erro ao salvar cliente no servidor:', error);
-      return cliente; // Retorna com ID local se falhar
+      throw new Error(error.error || 'Erro ao salvar cliente');
     }
     
     const serverCliente = await res.json();
@@ -109,7 +118,7 @@ async function saveClienteToServer(cliente) {
     return serverCliente;
   } catch (err) {
     console.error('Erro ao salvar cliente no servidor:', err);
-    return cliente;
+    throw err;
   }
 }
 
@@ -118,14 +127,13 @@ async function saveClienteToServer(cliente) {
  */
 async function updateClienteToServer(cliente) {
   try {
-    if (!isAuthenticated()) return cliente;
+    if (!isAuthenticated()) {
+      throw new Error('Usuário não autenticado');
+    }
     
     const res = await fetch(`/api/clientes/${cliente.id}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders()
-      },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         nome: cliente.nome,
         telefone: cliente.telefone,
@@ -135,15 +143,14 @@ async function updateClienteToServer(cliente) {
     });
     
     if (!res.ok) {
-      console.error('Erro ao atualizar cliente no servidor');
-      return cliente;
+      throw new Error('Erro ao atualizar cliente');
     }
     
     console.log('✓ Cliente atualizado no servidor');
     return await res.json();
   } catch (err) {
     console.error('Erro ao atualizar cliente no servidor:', err);
-    return cliente;
+    throw err;
   }
 }
 
@@ -152,7 +159,9 @@ async function updateClienteToServer(cliente) {
  */
 async function deleteClienteFromServer(clienteId) {
   try {
-    if (!isAuthenticated()) return true;
+    if (!isAuthenticated()) {
+      throw new Error('Usuário não autenticado');
+    }
     
     const res = await fetch(`/api/clientes/${clienteId}`, {
       method: 'DELETE',
@@ -161,31 +170,29 @@ async function deleteClienteFromServer(clienteId) {
     });
     
     if (!res.ok) {
-      console.error('Erro ao deletar cliente no servidor');
-      return false;
+      throw new Error('Erro ao deletar cliente');
     }
     
     console.log('✓ Cliente deletado no servidor');
     return true;
   } catch (err) {
     console.error('Erro ao deletar cliente no servidor:', err);
-    return false;
+    throw err;
   }
 }
 
 /**
- * Salvar venda no servidor ALÉM de IndexedDB
+ * Salvar venda no servidor
  */
 async function saveVendaToServer(venda) {
   try {
-    if (!isAuthenticated()) return venda;
+    if (!isAuthenticated()) {
+      throw new Error('Usuário não autenticado');
+    }
     
     const res = await fetch('/api/vendas', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders()
-      },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         produto: venda.produto,
         valor: venda.valor,
@@ -196,8 +203,7 @@ async function saveVendaToServer(venda) {
     });
     
     if (!res.ok) {
-      console.error('Erro ao salvar venda no servidor');
-      return venda;
+      throw new Error('Erro ao salvar venda');
     }
     
     const serverVenda = await res.json();
@@ -205,7 +211,7 @@ async function saveVendaToServer(venda) {
     return serverVenda;
   } catch (err) {
     console.error('Erro ao salvar venda no servidor:', err);
-    return venda;
+    throw err;
   }
 }
 
@@ -214,14 +220,13 @@ async function saveVendaToServer(venda) {
  */
 async function updateVendaToServer(venda) {
   try {
-    if (!isAuthenticated()) return venda;
+    if (!isAuthenticated()) {
+      throw new Error('Usuário não autenticado');
+    }
     
     const res = await fetch(`/api/vendas/${venda.id}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders()
-      },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         produto: venda.produto,
         valor: venda.valor,
@@ -232,15 +237,14 @@ async function updateVendaToServer(venda) {
     });
     
     if (!res.ok) {
-      console.error('Erro ao atualizar venda no servidor');
-      return venda;
+      throw new Error('Erro ao atualizar venda');
     }
     
     console.log('✓ Venda atualizada no servidor');
     return await res.json();
   } catch (err) {
     console.error('Erro ao atualizar venda no servidor:', err);
-    return venda;
+    throw err;
   }
 }
 
@@ -249,7 +253,9 @@ async function updateVendaToServer(venda) {
  */
 async function deleteVendaFromServer(vendaId) {
   try {
-    if (!isAuthenticated()) return true;
+    if (!isAuthenticated()) {
+      throw new Error('Usuário não autenticado');
+    }
     
     const res = await fetch(`/api/vendas/${vendaId}`, {
       method: 'DELETE',
@@ -258,15 +264,14 @@ async function deleteVendaFromServer(vendaId) {
     });
     
     if (!res.ok) {
-      console.error('Erro ao deletar venda no servidor');
-      return false;
+      throw new Error('Erro ao deletar venda');
     }
     
     console.log('✓ Venda deletada no servidor');
     return true;
   } catch (err) {
     console.error('Erro ao deletar venda no servidor:', err);
-    return false;
+    throw err;
   }
 }
 
